@@ -11,8 +11,9 @@ jobs:
     if: github.repository == 'Teraverse-AI/atoll'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      # Exact tag: setup-uv stopped publishing major/minor tags in v8.
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: "3.12"
       - name: Install

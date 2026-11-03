@@ -11,6 +11,12 @@ qXXX_name/
 └── gold_answer.json   # expected output, consumed by grading (deferred)
 ```
 
+`[atoll]` keys: `instruction_file`, `workspace_dir`, `gold_answer`, `servers` (which
+tool servers to mount; default all), `network` (containerized evals: `"off"` by
+default — the runner reaches only the LLM endpoint; `"on"` allows ordinary outbound
+access; see [Network setting](../environment/README.md#network-setting)), and
+`[[atoll.verifiers]]`.
+
 Binary fixtures (`.xlsx`, `.pdf`) are generated, not hand-edited:
 
 ```bash

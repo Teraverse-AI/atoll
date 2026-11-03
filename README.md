@@ -43,11 +43,15 @@
 
 ### 前置条件
 
-- Python 3.12+ 与 [uv](https://docs.astral.sh/uv/)
-- Docker（**仅**代码执行工具需要；其余部分均无需容器）
+- Docker——始终需要：模型编写的代码只在容器中运行
+- [uv](https://docs.astral.sh/uv/)——仅本快速上手（从源码运行）需要；若本机没有 Python 3.12，
+  uv 会自动安装（无需单独安装 Python）
 - 模型访问，二选一：
   - 一个 OpenAI 兼容端点（例如 LiteLLM 代理）及其 API 密钥，**或**
   - 直连厂商：所用厂商的官方 API 密钥
+
+> 只运行评测、不做开发？**只需 Docker**——无需 uv，也无需 Python：构建两个镜像后，用
+> `scripts/run_eval.sh`（或你自己的流水线）启动每个评测。见 [容器化评测](./environment/README.md#containerized-evals)。
 
 ### 1. 配置环境变量
 
@@ -109,7 +113,7 @@ Environment 是一个纯 Python 库（`atoll_env`）加一个轻量 CLI——Arc
 | `POST /apps`（热切换 MCP 配置） | `load_tools([...])`——选择本次运行挂载哪些工具服务器 |
 | MCP 网关进程 | —（工具为进程内函数） |
 
-`atoll_env.sandbox.ContainerSandbox` 是模型编写代码时**必需**的容器沙箱：Docker Desktop；`--network none`、限制内存、仅挂载工作区。不存在无沙箱的回退方案。容器化评测（机器上只需 Docker，无需安装 Python）中，每个评测以一对相互隔离的 runner + sandbox 容器运行，可由你自己的流水线启动——UI、服务器、CI 或其他任何方式均可；见 [容器化评测](./environment/README.md#containerized-evals)。
+`atoll_env.sandbox.ContainerSandbox` 是模型编写代码时**必需**的容器沙箱：Docker Desktop；`--network none`、限制内存、仅挂载工作区。不存在无沙箱的回退方案。容器化评测（机器上只需 Docker，无需安装 Python）中，每个评测以一对相互隔离的 runner + sandbox 容器运行（runner 网络默认**关闭**：只能访问 LLM 端点），可由你自己的流水线启动——UI、服务器、CI 或其他任何方式均可；见 [容器化评测](./environment/README.md#containerized-evals)。
 
 > 更多细节见 [Environment README](./environment/README.md)。
 
@@ -174,7 +178,8 @@ Agents 组件对应 Archipelago 的 `agents/runner/`。核心循环（`agents/ru
 | 工具传输方式 | MCP 网关 + 每个工具族一个 stdio 服务器 | 进程内原生 Python 函数 |
 | 模型可见的工具表面 | 经 OpenAI function calling 暴露的 MCP 服务器 | 完全相同（逐字移植，网关命名相同） |
 | 每个任务的内存开销 | 约 400MB（MCP 网关 + 服务器进程） | 约 0（单个 Python 进程） |
-| 容器 | 整个环境运行于 Docker | 宿主机运行：仅代码沙箱使用 Docker；容器化评测：每个评测一对 runner + 无网络 sandbox 容器 |
+| 容器 | 整个环境运行于 Docker | 宿主机运行：仅代码沙箱使用 Docker；容器化评测：每个评测一个 runner + 无网络 sandbox（`network` 关闭时另加 egress 代理） |
+| 网络 | [APEX-Agents 论文](https://arxiv.org/abs/2601.14242)写明：*"Web search is turned off for the benchmark to keep evaluations reproducible"*（§3.1）；我们在开源仓库中未发现容器层面的出网限制 | **并非 Mercor 的实现**——Atoll 将“关闭网络搜索”理解为“不获取任何外部信息”（若可自由联网，智能体能获取其可达的任何信息），因此容器化评测提供 `network` 设置（与 `max_steps` 同类），默认**关闭**：runner 只能经每个评测专属的 egress 代理访问白名单中的 LLM 端点；代码沙箱始终无网络（[详情](./environment/README.md#network-setting)） |
 | 任务格式 | Harbor 任务包（`task.toml`、`instruction.md`、快照） | 相同布局 |
 | 智能体循环 | `loop_truncated_tools_agent` | 忠实移植：裁剪、预算、溢出、逐字节一致的模板（见 NOTICE） |
 | LLM 客户端层 | `runner/utils/llm.py`：厂商请求适配、重试、缓存断点 | 同一批文件，在固定提交上逐字节内置；服务端基础设施通过 shim 关闭（`agents/runner/utils/PATCHES.md`） |

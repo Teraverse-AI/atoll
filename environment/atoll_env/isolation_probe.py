@@ -54,6 +54,87 @@ print(json.dumps(r))
 """
 
 
+def _direct(host: str, port: int) -> str:
+    """Open a plain TCP connection, bypassing any proxy: 'connected' or the error name."""
+    import socket
+
+    try:
+        socket.create_connection((host, port), timeout=4).close()
+        return "connected"
+    except OSError as exc:
+        return type(exc).__name__
+
+
+def _via_proxy(target: str) -> str:
+    """Ask the egress proxy to CONNECT to host:port; return its status line."""
+    import socket
+    from urllib.parse import urlsplit
+
+    proxy = urlsplit(os.environ["HTTPS_PROXY"])
+    with socket.create_connection((proxy.hostname, proxy.port), timeout=10) as conn:
+        conn.sendall(f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n\r\n".encode())
+        return conn.recv(200).split(b"\r\n", 1)[0].decode(errors="replace")
+
+
+def _litellm_through(allowed: str) -> str:
+    """A real LiteLLM call to the allowed host: any HTTP-level error proves the
+    request left through the proxy; a connection error means it could not."""
+    import asyncio
+
+    # As runner/__init__.py does: no cost-map download at import (network is off).
+    os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+    import litellm
+
+    host = allowed.rsplit(":", 1)[0]
+
+    async def call() -> str:
+        try:
+            await litellm.acompletion(
+                model="openai/probe", api_base=f"https://{host}/v1", api_key="sk-probe",
+                messages=[{"role": "user", "content": "hi"}], max_retries=0, timeout=20,
+            )
+            return "ok"
+        except litellm.APIConnectionError as exc:
+            return f"CONNECTION_ERROR {str(exc)[:120]}"
+        except Exception as exc:
+            return f"HTTP_LEVEL {type(exc).__name__}"
+
+    return asyncio.run(call())
+
+
+def _check_runner_network(check) -> None:
+    mode = os.environ.get("ATOLL_NETWORK_MODE", "")
+    allow = [a for a in os.environ.get("ATOLL_EGRESS_ALLOW", "").split(",") if a]
+    check("runner: network mode known", mode in ("on", "off"), mode)
+    # The same targets in both modes: the network-on eval proves they are reachable
+    # from this machine, so the network-off evals failing to reach them is meaningful.
+    host, _, port = (allow[0] if allow else "example.com:443").rpartition(":")
+    targets = [(host, int(port)), ("8.8.8.8", 53)]
+    if mode == "on":
+        reach = {f"{h}:{p}": _direct(h, p) for h, p in targets}
+        check("runner(network on): direct internet reachable",
+              all(v == "connected" for v in reach.values()), reach)
+        return
+    reach = {f"{h}:{p}": _direct(h, p) for h, p in targets}
+    check("runner(network off): no direct internet (by name and by IP)",
+          all(v != "connected" for v in reach.values()), reach)
+    check("runner(network off): host machine unreachable",
+          _direct("host.docker.internal", 22) != "connected"
+          and _direct("host.docker.internal", 4000) != "connected")
+    check("runner(network off): private LAN unreachable",
+          all(_direct(ip, 80) != "connected" for ip in ("192.168.1.1", "10.0.0.1", "172.17.0.1")))
+    check("runner(network off): proxy refuses non-allow-listed host",
+          " 403 " in f" {_via_proxy('github.com:443')} ", _via_proxy("github.com:443"))
+    check("runner(network off): proxy refuses raw IP",
+          " 403 " in f" {_via_proxy('1.1.1.1:443')} ", _via_proxy("1.1.1.1:443"))
+    if allow:
+        check("runner(network off): proxy admits the allow-listed endpoint",
+              " 200 " in f" {_via_proxy(allow[0])} ", _via_proxy(allow[0]))
+        result = _litellm_through(allow[0])
+        check("runner(network off): LiteLLM reaches the endpoint via the proxy",
+              result.startswith(("HTTP_LEVEL", "ok")), result)
+
+
 def main() -> int:
     eval_id = os.environ["ATOLL_EVAL_ID"]
     secret = os.environ.get("ATOLL_PROBE_SECRET", "")
@@ -146,6 +227,9 @@ def main() -> int:
 
     res = sb.run_python("print('still alive')", WORKSPACE, timeout=30)
     check("sandbox: recovers after abuse", res.get("stdout", "").strip() == "still alive", res)
+
+    # --- runner network (the eval's `network` setting) ---
+    _check_runner_network(check)
 
     # --- the model-facing tool, end to end ---
     from atoll_tools.context import set_workspace_root

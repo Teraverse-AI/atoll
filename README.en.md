@@ -43,11 +43,16 @@ Model calls route either through an OpenAI-compatible proxy **or directly to off
 
 ### Prerequisites
 
-- Python 3.12+ and [uv](https://docs.astral.sh/uv/)
-- Docker (required **only** for the code-execution tools; everything else is container-free)
+- Docker — always: model-written code only ever runs in a container
+- [uv](https://docs.astral.sh/uv/) — for this from-source Quick Start only; it installs
+  Python 3.12 itself if you don't have it (no separate Python install needed)
 - Model access, either way:
   - an OpenAI-compatible endpoint (e.g. a LiteLLM proxy) and its API key, **or**
   - direct-to-provider: official API keys for the providers you use
+
+> Only running evals, not developing? You need **Docker alone** — no uv, no Python:
+> build the two images and launch each eval with `scripts/run_eval.sh` (or your own
+> pipeline). See [Containerized evals](./environment/README.md#containerized-evals).
 
 ### 1. Set Up Environment Variables
 
@@ -109,7 +114,7 @@ The Environment is a plain Python library (`atoll_env`) plus a thin CLI — Arch
 | `POST /apps` (hot-swap MCP config) | `load_tools([...])` — pick which tool servers a run mounts |
 | MCP gateway process | — (tools are in-process functions) |
 
-`atoll_env.sandbox.ContainerSandbox` is the **required** container sandbox for model-written code: Docker Desktop; `--network none`, memory-capped, only the workspace mounted. There is no unsandboxed fallback. For containerized evals (only Docker needed on the machine, no Python install), each eval runs as an isolated runner + sandbox container pair that you can launch from your own pipeline — a UI, a server, CI, or anything else; see [Containerized evals](./environment/README.md#containerized-evals).
+`atoll_env.sandbox.ContainerSandbox` is the **required** container sandbox for model-written code: Docker Desktop; `--network none`, memory-capped, only the workspace mounted. There is no unsandboxed fallback. For containerized evals (only Docker needed on the machine, no Python install), each eval runs as an isolated runner + sandbox container pair (runner network **off** by default: only the LLM endpoint is reachable) that you can launch from your own pipeline — a UI, a server, CI, or anything else; see [Containerized evals](./environment/README.md#containerized-evals).
 
 > For more details, see the [Environment README](./environment/README.md).
 
@@ -174,7 +179,8 @@ Deferred. The contract it will consume already exists (initial/final snapshots, 
 | Tool transport | MCP gateway + stdio server per tool family | native Python functions, in-process |
 | Model-visible tool surface | MCP servers via OpenAI function calling | identical (ported verbatim, same gateway naming) |
 | RAM overhead per task | ~400MB (MCP gateway + server processes) | ~0 (one Python process) |
-| Containers | Docker for the whole environment | host runs: Docker only for code sandboxing; containerized evals: one runner + network-less sandbox pair per eval |
+| Containers | Docker for the whole environment | host runs: Docker only for code sandboxing; containerized evals: per eval a runner + network-less sandbox (+ egress proxy when `network` is off) |
+| Network | the [APEX-Agents paper](https://arxiv.org/abs/2601.14242) states: *"Web search is turned off for the benchmark to keep evaluations reproducible"* (§3.1); we found no container-level egress restriction in the open-source repo | **not Mercor's mechanism** — Atoll reads "no web search" as "no outside information" (open network access would let an agent fetch whatever it can reach), so containerized evals have a `network` setting (like `max_steps`), default **off**: the runner reaches only the allow-listed LLM endpoint via a per-eval egress proxy; the code sandbox never has a network ([details](./environment/README.md#network-setting)) |
 | Task format | Harbor bundles (`task.toml`, `instruction.md`, snapshots) | same layout |
 | Agent loop | `loop_truncated_tools_agent` | faithful port: trimming, budgets, spill, byte-identical templates (see NOTICE) |
 | LLM client layer | `runner/utils/llm.py`: provider request surgery, retries, cache breakpoints | the same files, vendored byte-identical at a pinned commit; server infra disabled via shims (`agents/runner/utils/PATCHES.md`) |

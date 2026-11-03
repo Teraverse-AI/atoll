@@ -22,12 +22,13 @@ plus a thin CLI.
 ## Containerized evals
 
 The machine needs only Docker (no Python install). Each eval runs as an isolated
-**pair** that shares nothing with any other eval:
+set of containers that shares nothing with any other eval:
 
 | Container | Image | Network | Sees |
 |---|---|---|---|
-| `<id>-runner` | `atoll-runner` (loop + LLM layer + tools; `agents/Dockerfile`) | LLM egress only; no container-to-container traffic | task bundle (read-only), its run dir, its channel |
-| `<id>-sandbox` | `atoll-sandbox` (model-written code) | **none** | its workspace, its channel |
+| `<id>-runner` | `atoll-runner` (loop + LLM layer + tools; `agents/Dockerfile`) | per the `network` setting (below); never other evals | task bundle (read-only), its run dir, its channel |
+| `<id>-egress` | `atoll-runner` (`atoll_env.egress_proxy`) — only when `network` is off | bridges the runner's internal network to the allow-listed endpoint(s) only | nothing (no mounts) |
+| `<id>-sandbox` | `atoll-sandbox` (model-written code) | **none**, always | its workspace, its channel |
 
 Code calls travel as files through a private per-eval volume (`<id>-ch`); no
 container gets the Docker socket, root, capabilities or a writable root
@@ -47,3 +48,31 @@ its containers:
 ```bash
 ATOLL_ISOLATION_TESTS=1 uv run pytest environment/tests/test_isolation.py -v
 ```
+
+### Network setting
+
+`network` is resolved like the loop's stop conditions (`max_steps`, …):
+`--network` flag > `task.toml` `[atoll] network` > `$ATOLL_NETWORK` > default **`off`**.
+
+| `network` | Runner can reach | How it is enforced |
+|---|---|---|
+| **`off`** (default) | only the allow-listed LLM endpoint(s) | the runner sits on a Docker `--internal` network with no route out; its only exit is the per-eval egress proxy, which admits only allow-listed `host:port` pairs (HTTPS tunnels end-to-end — the proxy never sees requests or keys) and refuses everything else with 403 |
+| `on` | ordinary outbound access | shared runner network; still no traffic to other evals' containers |
+
+- **Allow-list**: `ATOLL_EGRESS_ALLOW` (comma-separated `host:port`) if set, else the
+  host of `LITELLM_BASE_URL`. Direct-to-provider runs must list provider hosts
+  explicitly (e.g. `api.openai.com:443`); with nothing to allow, the launcher refuses
+  to start. A gateway on the host machine is reached as `host.docker.internal:<port>`.
+- **Audit**: every proxy decision lands in `<run-dir>/egress.log`; the resolved setting
+  in `<run-dir>/network.txt`.
+- **The code sandbox never has a network**, whatever `network` says.
+- Host runs (`uv run atoll-run`) are not containerized and use the host's network.
+
+**This is not Mercor's mechanism.** The APEX-Agents paper (Vidgen et al., 2026,
+[arXiv:2601.14242](https://arxiv.org/abs/2601.14242), §3.1) states: *"Web search is
+turned off for the benchmark to keep evaluations reproducible."* We found no
+container-level egress restriction in Archipelago's open-source repo; any network
+policy of Mercor's hosted runs is not public. Atoll's interpretation: turning off web
+search only means something if the agent cannot fetch outside information at all —
+an agent with open network access could retrieve whatever it can reach — so Atoll
+enforces the intent at the network level, allowing nothing but the model endpoint.
