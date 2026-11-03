@@ -1,0 +1,1696 @@
+{
+ "create_spreadsheet": {
+  "description": "Create a new `.xlsx` workbook with validated sheet definitions, headers, and rows.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "directory": {
+       "description": "Absolute directory path where the spreadsheet will be created. Use '/' for root or a nested path (e.g., '/reports/2024', '/data')",
+       "type": "string"
+      },
+      "file_name": {
+       "description": "Output filename ending with .xlsx (e.g., 'sales_report.xlsx', 'inventory.xlsx'). Must not contain '/' characters",
+       "type": "string"
+      },
+      "sheets": {
+       "description": "List of sheet definitions. Each sheet has: 'name' (required, string) - the tab name (e.g., 'Sheet1', 'Sales Data'); 'headers' (optional, list) - column headers as strings/numbers, freezes first row if provided (e.g., ['Name', 'Age', 'City']); 'rows' (optional, list of lists) - 2D array of cell values where each inner list is a row (e.g., [['John', 30, 'NYC'], ['Jane', 25, 'LA']]). When headers are provided, each row must have the same number of elements as headers.",
+       "items": {
+        "additionalProperties": false,
+        "description": "Structured definition for a worksheet.",
+        "properties": {
+         "name": {
+          "description": "Worksheet tab name. Required, non-empty string (e.g., 'Sheet1', 'Sales Data'). Maximum 31 characters. Must be unique within the workbook",
+          "type": "string"
+         },
+         "headers": {
+          "anyOf": [
+           {
+            "items": {
+             "anyOf": [
+              {
+               "type": "string"
+              },
+              {
+               "type": "integer"
+              },
+              {
+               "type": "number"
+              },
+              {
+               "type": "boolean"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "type": "array"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "default": null,
+          "description": "(Optional) Optional array of column header values (e.g., ['Name', 'Age', 'City']). When provided, first row is populated with headers and frozen. Must contain only simple values (string, number, boolean, null)",
+          "nullable": true
+         },
+         "rows": {
+          "description": "(Optional) Array of data rows. Each row is an array of cell values (e.g., [['John', 30, 'NYC'], ['Jane', 25, 'LA']]). Default is empty array. When headers are provided, each row must have same length as headers array",
+          "items": {
+           "items": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "integer"
+             },
+             {
+              "type": "number"
+             },
+             {
+              "type": "boolean"
+             },
+             {
+              "type": "null"
+             }
+            ]
+           },
+           "type": "array"
+          },
+          "nullable": true,
+          "type": "array"
+         }
+        },
+        "required": [
+         "name"
+        ],
+        "type": "object"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "directory",
+      "file_name",
+      "sheets"
+     ],
+     "type": "object",
+     "description": "Spreadsheet creation options including the destination path, filename, and initial worksheet data."
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "delete_spreadsheet": {
+  "description": "Delete an Excel workbook file from the filesystem.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .xlsx file to delete, starting with '/' (e.g., '/data/report.xlsx'). Operation succeeds even if file does not exist",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "type": "object"
+  }
+ },
+ "read_tab": {
+  "description": "Read worksheet data from a tab or range with optional formula extraction and truncation.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .xlsx file starting with '/' (e.g., '/data/report.xlsx')",
+       "type": "string"
+      },
+      "tab_index": {
+       "description": "0-based worksheet tab index (e.g., 0 for first tab, 1 for second tab). Use list_tabs_in_spreadsheet to discover available tabs",
+       "minimum": 0,
+       "type": "integer"
+      },
+      "cell_range": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "(Optional) Optional cell range to read. Single cell (e.g., 'A1', 'B5') returns one value; range (e.g., 'A1:C5', 'B2:D10') returns 2D array. If null/omitted, reads the entire worksheet",
+       "nullable": true
+      },
+      "include_formulas": {
+       "default": false,
+       "description": "(Optional) Include formula information (default False for efficiency)",
+       "nullable": true,
+       "type": "boolean"
+      },
+      "max_rows": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": 1000,
+       "description": "(Optional) Maximum rows to return (default 1000, None for unlimited)",
+       "nullable": true
+      },
+      "max_cols": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": 100,
+       "description": "(Optional) Maximum columns to return (default 100, None for unlimited)",
+       "nullable": true
+      },
+      "compact": {
+       "default": false,
+       "description": "(Optional) Use compact CSV-style output without formatting (default False)",
+       "nullable": true,
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "file_path",
+      "tab_index"
+     ],
+     "type": "object",
+     "description": "Worksheet reading options including the target workbook and tab, cell range, and output settings."
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "read_csv": {
+  "description": "Read a CSV file with configurable delimiter/encoding and return structured rows.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .csv file starting with '/' (e.g., '/data/input.csv')",
+       "type": "string"
+      },
+      "delimiter": {
+       "default": ",",
+       "description": "(Optional) Column delimiter character. Default is ',' (comma). Use '\\t' for tab-delimited files, ';' for semicolon-separated",
+       "nullable": true,
+       "type": "string"
+      },
+      "encoding": {
+       "default": "utf-8",
+       "description": "(Optional) File character encoding (e.g., 'utf-8', 'utf-8-sig', 'latin-1', 'cp1252'). Default is 'utf-8'",
+       "nullable": true,
+       "type": "string"
+      },
+      "has_header": {
+       "default": true,
+       "description": "(Optional) If true (default), treats first row as column headers. If false, all rows are data rows",
+       "nullable": true,
+       "type": "boolean"
+      },
+      "row_limit": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": 1000,
+       "description": "(Optional) Maximum number of data rows to return (default 1000 for token efficiency, None for unlimited). Header row does NOT count toward this limit. Examples: has_header=True + row_limit=100 returns 101 rows total (1 header + 100 data). has_header=False + row_limit=100 returns 100 rows total.",
+       "nullable": true
+      },
+      "compact": {
+       "default": false,
+       "description": "(Optional) If true, use compact CSV-style output without table formatting. Default is false (table format)",
+       "nullable": true,
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "file_path"
+     ],
+     "type": "object",
+     "description": "CSV reading options including the source path, parsing settings, and output limits."
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "list_tabs_in_spreadsheet": {
+  "description": "List all worksheet tabs in a workbook with their metadata.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .xlsx file starting with '/' (e.g., '/data/report.xlsx')",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "type": "object"
+  }
+ },
+ "add_tab": {
+  "description": "Add a new worksheet tab to an existing workbook, with optional seed data.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .xlsx file starting with '/' (e.g., '/data/report.xlsx'). File must exist",
+       "type": "string"
+      },
+      "tab_name": {
+       "description": "Name for the new worksheet tab (e.g., 'Sheet2', 'Sales Data'). Maximum 31 characters. Cannot contain: \\ / ? * [ ]. Must not already exist in workbook",
+       "maxLength": 31,
+       "type": "string"
+      },
+      "sheet_data": {
+       "anyOf": [
+        {
+         "additionalProperties": false,
+         "description": "Sheet data definition for adding data to a worksheet (without name).",
+         "properties": {
+          "headers": {
+           "anyOf": [
+            {
+             "items": {
+              "anyOf": [
+               {
+                "type": "string"
+               },
+               {
+                "type": "integer"
+               },
+               {
+                "type": "number"
+               },
+               {
+                "type": "boolean"
+               },
+               {
+                "type": "null"
+               }
+              ]
+             },
+             "type": "array"
+            },
+            {
+             "type": "null"
+            }
+           ],
+           "default": null,
+           "description": "(Optional) Optional array of column header values. When provided, first row is populated with headers and frozen",
+           "nullable": true
+          },
+          "rows": {
+           "description": "(Optional) Array of data rows. Each row is an array of cell values. When headers are provided, each row must have same length as headers array",
+           "items": {
+            "items": {
+             "anyOf": [
+              {
+               "type": "string"
+              },
+              {
+               "type": "integer"
+              },
+              {
+               "type": "number"
+              },
+              {
+               "type": "boolean"
+              },
+              {
+               "type": "null"
+              }
+             ]
+            },
+            "type": "array"
+           },
+           "nullable": true,
+           "type": "array"
+          }
+         },
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "(Optional) Optional initial data with 'headers' (list of column names) and 'rows' (list of lists of cell values). If headers are provided, rows must match header length. Headers freeze the first row automatically",
+       "nullable": true
+      }
+     },
+     "required": [
+      "file_path",
+      "tab_name"
+     ],
+     "type": "object",
+     "description": "Worksheet tab creation options including the target workbook, tab name, and optional initial data."
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "delete_tab": {
+  "description": "Remove a worksheet tab from a workbook.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .xlsx file starting with '/' (e.g., '/data/report.xlsx')",
+     "type": "string"
+    },
+    "tab_index": {
+     "description": "0-based index of the worksheet tab to delete (e.g., 0 for first tab). Cannot delete the last remaining tab in a workbook",
+     "minimum": 0,
+     "type": "integer"
+    }
+   },
+   "required": [
+    "file_path",
+    "tab_index"
+   ],
+   "type": "object"
+  }
+ },
+ "edit_spreadsheet": {
+  "description": "Apply a batch of spreadsheet edit operations atomically to a single workbook.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .xlsx file starting with '/' (e.g., '/data/report.xlsx')",
+       "type": "string"
+      },
+      "operations": {
+       "description": "List of edit operation objects. Each must include a 'type' field specifying the operation: 'set_cell', 'append_rows', 'rename_sheet', 'format_cells', 'merge_cells', 'unmerge_cells', 'set_column_width', 'set_row_height', 'freeze_panes', 'add_named_range', 'delete_named_range', 'add_data_validation', 'add_conditional_formatting', 'set_auto_filter', 'set_number_format', 'add_image'. Operations are applied in order",
+       "items": {
+        "oneOf": [
+         {
+          "additionalProperties": false,
+          "description": "Operation to set a specific cell value.",
+          "properties": {
+           "type": {
+            "const": "set_cell",
+            "description": "Operation type identifier. Must be exactly 'set_cell'",
+            "type": "string"
+           },
+           "sheet": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Name of the worksheet tab to modify (e.g., 'Sheet1', 'Sales Data'). Defaults to the workbook's active sheet when omitted",
+            "nullable": true
+           },
+           "cell": {
+            "description": "Excel cell reference in A1 notation (e.g., 'A1', 'B5', 'AA100'). Column letters followed by row number, case-insensitive",
+            "type": "string"
+           },
+           "value": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "integer"
+             },
+             {
+              "type": "number"
+             },
+             {
+              "type": "boolean"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "Value to set in the cell. Can be string, number, boolean, null, or formula string starting with '=' (e.g., '=SUM(A1:A10)')"
+           }
+          },
+          "required": [
+           "type",
+           "cell",
+           "value"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to append one or many rows to a sheet.",
+          "properties": {
+           "type": {
+            "const": "append_rows",
+            "description": "Operation type identifier. Must be exactly 'append_rows'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab to append rows to (e.g., 'Sheet1'). Sheet will be created if it does not exist",
+            "type": "string"
+           },
+           "rows": {
+            "description": "(Optional) 2D array of row data to append. Each inner array is one row (e.g., [['John', 30], ['Jane', 25]]). Row length should match existing header columns if present",
+            "items": {
+             "items": {
+              "anyOf": [
+               {
+                "type": "string"
+               },
+               {
+                "type": "integer"
+               },
+               {
+                "type": "number"
+               },
+               {
+                "type": "boolean"
+               },
+               {
+                "type": "null"
+               }
+              ]
+             },
+             "type": "array"
+            },
+            "nullable": true,
+            "type": "array"
+           }
+          },
+          "required": [
+           "type",
+           "sheet"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to rename a sheet.",
+          "properties": {
+           "type": {
+            "const": "rename_sheet",
+            "description": "Operation type identifier. Must be exactly 'rename_sheet'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Current name of the worksheet tab to rename (e.g., 'Sheet1'). Must exist in the workbook",
+            "type": "string"
+           },
+           "new_name": {
+            "description": "New name for the worksheet tab (e.g., 'Sales Report'). Must be non-empty and not already exist in the workbook. Maximum 31 characters",
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "sheet",
+           "new_name"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to format cells (font, colors, alignment, borders).",
+          "properties": {
+           "type": {
+            "const": "format_cells",
+            "description": "Operation type identifier. Must be exactly 'format_cells'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab containing cells to format (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "range": {
+            "description": "Cell range to format. Supports: single cell ('A1'), range ('A1:B5'), entire column ('A:A'), entire row ('1:1'), or row range ('1:5')",
+            "type": "string"
+           },
+           "font_name": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Font family name (e.g., 'Arial', 'Calibri', 'Times New Roman'). Null to keep existing font",
+            "nullable": true
+           },
+           "font_size": {
+            "anyOf": [
+             {
+              "type": "integer"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Font size in points (e.g., 11, 14, 18). Null to keep existing size",
+            "nullable": true
+           },
+           "font_bold": {
+            "anyOf": [
+             {
+              "type": "boolean"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Set to true for bold text, false for normal weight, null to keep existing",
+            "nullable": true
+           },
+           "font_italic": {
+            "anyOf": [
+             {
+              "type": "boolean"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Set to true for italic text, false for normal, null to keep existing",
+            "nullable": true
+           },
+           "font_underline": {
+            "anyOf": [
+             {
+              "type": "boolean"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Set to true for underlined text, false to remove underline, null to keep existing",
+            "nullable": true
+           },
+           "font_color": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Font color as hex string without '#' prefix (e.g., 'FF0000' for red, '0000FF' for blue). 6 or 8 hex digits (RRGGBB or AARRGGBB)",
+            "nullable": true
+           },
+           "fill_color": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Cell background color as hex string (e.g., 'FFFF00' for yellow). 6 or 8 hex digits",
+            "nullable": true
+           },
+           "fill_pattern": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Fill pattern type. Valid values: 'solid', 'lightGray', 'mediumGray', 'darkGray', 'gray125', 'gray0625', 'lightDown', 'lightUp', 'darkDown', 'darkUp', 'darkGrid', 'darkTrellis', 'lightGrid', 'lightTrellis', 'darkHorizontal', 'darkVertical', 'lightHorizontal', 'lightVertical'",
+            "nullable": true
+           },
+           "horizontal_alignment": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Horizontal text alignment. Valid values: 'left', 'center', 'right', 'justify', 'general', 'fill', 'centerContinuous', 'distributed'",
+            "nullable": true
+           },
+           "vertical_alignment": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Vertical text alignment. Valid values: 'top', 'center', 'bottom', 'justify', 'distributed'",
+            "nullable": true
+           },
+           "wrap_text": {
+            "anyOf": [
+             {
+              "type": "boolean"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Set to true to wrap text within cell, false to disable wrapping, null to keep existing",
+            "nullable": true
+           },
+           "border_style": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Border line style. Valid values: 'thin', 'medium', 'thick', 'double', 'dotted', 'dashed', 'hair', 'mediumDashed', 'dashDot', 'mediumDashDot', 'dashDotDot', 'slantDashDot'",
+            "nullable": true
+           },
+           "border_color": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Border color as hex string (e.g., '000000' for black). 6 or 8 hex digits",
+            "nullable": true
+           },
+           "border_sides": {
+            "anyOf": [
+             {
+              "items": {
+               "type": "string"
+              },
+              "type": "array"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Array of sides to apply border to. Valid values: 'left', 'right', 'top', 'bottom'. If null, applies to all four sides",
+            "nullable": true
+           }
+          },
+          "required": [
+           "type",
+           "sheet",
+           "range"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to merge cells.",
+          "properties": {
+           "type": {
+            "const": "merge_cells",
+            "description": "Operation type identifier. Must be exactly 'merge_cells'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab containing cells to merge (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "range": {
+            "description": "Cell range to merge in A1:B1 notation (e.g., 'A1:D1' for horizontal merge, 'A1:A5' for vertical merge). Must include at least 2 cells",
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "sheet",
+           "range"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to unmerge cells.",
+          "properties": {
+           "type": {
+            "const": "unmerge_cells",
+            "description": "Operation type identifier. Must be exactly 'unmerge_cells'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab containing merged cells to unmerge (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "range": {
+            "description": "Cell range to unmerge (e.g., 'A1:D1'). Must match an existing merged region",
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "sheet",
+           "range"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to set column width.",
+          "properties": {
+           "type": {
+            "const": "set_column_width",
+            "description": "Operation type identifier. Must be exactly 'set_column_width'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "column": {
+            "description": "Column letter(s) to resize (e.g., 'A', 'B', 'AA'). Case-insensitive",
+            "type": "string"
+           },
+           "width": {
+            "description": "Column width in character units (Excel's default unit, approximately 7 pixels per unit). Must be positive and not exceed 255",
+            "type": "number"
+           }
+          },
+          "required": [
+           "type",
+           "sheet",
+           "column",
+           "width"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to set row height.",
+          "properties": {
+           "type": {
+            "const": "set_row_height",
+            "description": "Operation type identifier. Must be exactly 'set_row_height'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "row": {
+            "description": "1-based row number to resize (e.g., 1 for first row, 10 for tenth row). Must be at least 1",
+            "type": "integer"
+           },
+           "height": {
+            "description": "Row height in points (1 point = 1/72 inch). Must be positive and not exceed 409",
+            "type": "number"
+           }
+          },
+          "required": [
+           "type",
+           "sheet",
+           "row",
+           "height"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to freeze panes at a specific cell.",
+          "properties": {
+           "type": {
+            "const": "freeze_panes",
+            "description": "Operation type identifier. Must be exactly 'freeze_panes'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "cell": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Cell reference where freeze occurs. Rows above and columns to the left of this cell are frozen (e.g., 'B2' freezes row 1 and column A, 'A2' freezes row 1 only). Set to null to unfreeze all panes",
+            "nullable": true
+           }
+          },
+          "required": [
+           "type",
+           "sheet"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to add a named range.",
+          "properties": {
+           "type": {
+            "const": "add_named_range",
+            "description": "Operation type identifier. Must be exactly 'add_named_range'",
+            "type": "string"
+           },
+           "name": {
+            "description": "Name for the range. Must start with letter or underscore, followed by letters, digits, underscores, or dots (e.g., 'SalesData', 'Q1_Revenue', 'data.range'). Cannot be an existing name",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab containing the range (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "range": {
+            "description": "Cell range to name in A1:B10 notation (e.g., 'A1:B10', 'C5:C100')",
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "name",
+           "sheet",
+           "range"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to delete a named range.",
+          "properties": {
+           "type": {
+            "const": "delete_named_range",
+            "description": "Operation type identifier. Must be exactly 'delete_named_range'",
+            "type": "string"
+           },
+           "name": {
+            "description": "Name of the named range to delete. Must exist in the workbook",
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "name"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to add data validation to cells.",
+          "properties": {
+           "type": {
+            "const": "add_data_validation",
+            "description": "Operation type identifier. Must be exactly 'add_data_validation'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "range": {
+            "description": "Cell range to apply validation (e.g., 'A1:A100', 'B2:D10')",
+            "type": "string"
+           },
+           "validation_type": {
+            "description": "Type of validation. Valid values: 'list' (dropdown), 'whole' (whole numbers), 'decimal' (decimal numbers), 'date', 'time', 'textLength', 'custom' (formula-based)",
+            "type": "string"
+           },
+           "operator": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Comparison operator for whole/decimal/date/time/textLength validations. Valid values: 'between', 'notBetween', 'equal', 'notEqual', 'lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual'. Not used for 'list' type",
+            "nullable": true
+           },
+           "formula1": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Primary formula/value. For 'list': comma-separated values or cell range (e.g., 'Yes,No,Maybe' or 'Sheet1!A1:A5'). For numeric: the value to compare or range start for 'between'",
+            "nullable": true
+           },
+           "formula2": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Secondary formula/value for 'between' and 'notBetween' operators. Specifies the upper bound of the range",
+            "nullable": true
+           },
+           "allow_blank": {
+            "default": true,
+            "description": "(Optional) If true (default), empty cells pass validation. If false, cells must contain a value",
+            "nullable": true,
+            "type": "boolean"
+           },
+           "show_error_message": {
+            "default": true,
+            "description": "(Optional) If true (default), shows error popup when invalid data is entered",
+            "nullable": true,
+            "type": "boolean"
+           },
+           "error_title": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Title text for the error popup dialog (e.g., 'Invalid Entry')",
+            "nullable": true
+           },
+           "error_message": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Message text for the error popup (e.g., 'Please enter a number between 1 and 100')",
+            "nullable": true
+           },
+           "show_input_message": {
+            "default": false,
+            "description": "(Optional) If true, shows input hint when cell is selected. Default is false",
+            "nullable": true,
+            "type": "boolean"
+           },
+           "input_title": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Title text for the input hint popup",
+            "nullable": true
+           },
+           "input_message": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Message text for the input hint popup",
+            "nullable": true
+           }
+          },
+          "required": [
+           "type",
+           "sheet",
+           "range",
+           "validation_type"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to add conditional formatting.",
+          "properties": {
+           "type": {
+            "const": "add_conditional_formatting",
+            "description": "Operation type identifier. Must be exactly 'add_conditional_formatting'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "range": {
+            "description": "Cell range to apply conditional formatting (e.g., 'A1:A100', 'B2:D10')",
+            "type": "string"
+           },
+           "rule_type": {
+            "description": "Type of conditional rule. Valid values: 'cellIs' (value comparison), 'colorScale' (gradient), 'dataBar' (bar chart in cell), 'expression' (custom formula), 'top10', 'aboveAverage', 'duplicateValues', 'uniqueValues', 'containsText', 'notContainsText', 'beginsWith', 'endsWith', 'containsBlanks', 'notContainsBlanks'",
+            "type": "string"
+           },
+           "operator": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Comparison operator for 'cellIs' rule_type. Valid values: 'between', 'notBetween', 'equal', 'notEqual', 'lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual'",
+            "nullable": true
+           },
+           "formula": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Value or formula for comparison. For 'cellIs': the value to compare (e.g., '100', '=A1'). For 'expression': a formula that returns TRUE/FALSE. For 'between': the lower bound",
+            "nullable": true
+           },
+           "formula2": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Upper bound value for 'between' and 'notBetween' operators",
+            "nullable": true
+           },
+           "font_color": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Font color when condition is met, as hex string (e.g., 'FF0000' for red)",
+            "nullable": true
+           },
+           "fill_color": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Cell background color when condition is met, as hex string (e.g., 'FFFF00' for yellow)",
+            "nullable": true
+           },
+           "font_bold": {
+            "anyOf": [
+             {
+              "type": "boolean"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Set to true to make text bold when condition is met",
+            "nullable": true
+           },
+           "font_italic": {
+            "anyOf": [
+             {
+              "type": "boolean"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Set to true to make text italic when condition is met",
+            "nullable": true
+           },
+           "color_scale_colors": {
+            "anyOf": [
+             {
+              "items": {
+               "type": "string"
+              },
+              "type": "array"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Array of 2 or 3 hex color strings for 'colorScale' rule_type (e.g., ['FF0000', 'FFFF00', '00FF00'] for red-yellow-green gradient)",
+            "nullable": true
+           },
+           "data_bar_color": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Bar color for 'dataBar' rule_type, as hex string (e.g., '638EC6' for blue)",
+            "nullable": true
+           },
+           "rank": {
+            "anyOf": [
+             {
+              "type": "integer"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Number of top/bottom items for 'top10' rule_type. Default is 10",
+            "nullable": true
+           },
+           "percent": {
+            "anyOf": [
+             {
+              "type": "boolean"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) If true, 'rank' is treated as percentage for 'top10' rule_type. Default is false",
+            "nullable": true
+           },
+           "text": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Text to search for in 'containsText', 'notContainsText', 'beginsWith', 'endsWith' rule types",
+            "nullable": true
+           }
+          },
+          "required": [
+           "type",
+           "sheet",
+           "range",
+           "rule_type"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to set auto-filter on a range.",
+          "properties": {
+           "type": {
+            "const": "set_auto_filter",
+            "description": "Operation type identifier. Must be exactly 'set_auto_filter'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "range": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Cell range for auto-filter (e.g., 'A1:D10'). Filter dropdowns appear on the first row of the range. Set to null to remove existing auto-filter",
+            "nullable": true
+           }
+          },
+          "required": [
+           "type",
+           "sheet"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to set number format on cells.",
+          "properties": {
+           "type": {
+            "const": "set_number_format",
+            "description": "Operation type identifier. Must be exactly 'set_number_format'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "range": {
+            "description": "Cell range to format (e.g., 'A1:A100', 'B2:D10')",
+            "type": "string"
+           },
+           "format": {
+            "description": "Excel number format string. Examples: '#,##0.00' (thousands separator with 2 decimals), '0%' (percentage), '$#,##0.00' (currency), 'yyyy-mm-dd' (date), '0.00E+00' (scientific). See Excel number format documentation for full syntax",
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "sheet",
+           "range",
+           "format"
+          ],
+          "type": "object"
+         },
+         {
+          "additionalProperties": false,
+          "description": "Operation to add an image to a worksheet.",
+          "properties": {
+           "type": {
+            "const": "add_image",
+            "description": "Operation type identifier. Must be exactly 'add_image'",
+            "type": "string"
+           },
+           "sheet": {
+            "description": "Name of the worksheet tab (e.g., 'Sheet1')",
+            "type": "string"
+           },
+           "image_path": {
+            "description": "Absolute path to the image file (e.g., '/images/logo.png'). Supported formats: PNG, JPEG, GIF, BMP",
+            "type": "string"
+           },
+           "cell": {
+            "description": "Cell reference for top-left corner anchor of the image (e.g., 'A1', 'D5')",
+            "type": "string"
+           },
+           "width": {
+            "anyOf": [
+             {
+              "type": "integer"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Image width in pixels. If null, uses original image width",
+            "nullable": true
+           },
+           "height": {
+            "anyOf": [
+             {
+              "type": "integer"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "default": null,
+            "description": "(Optional) Image height in pixels. If null, uses original image height",
+            "nullable": true
+           }
+          },
+          "required": [
+           "type",
+           "sheet",
+           "image_path",
+           "cell"
+          ],
+          "type": "object"
+         }
+        ]
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "file_path",
+      "operations"
+     ],
+     "type": "object",
+     "description": "Spreadsheet editing options including the target workbook and ordered edit operations."
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "add_content_text": {
+  "description": "Add text, number, or formula to a specific cell in a worksheet.\n\nThe target cell must be empty; this tool will not overwrite existing values.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .xlsx file starting with '/' (e.g., '/data/report.xlsx')",
+     "type": "string"
+    },
+    "tab_index": {
+     "description": "0-based worksheet tab index (e.g., 0 for first tab, 1 for second tab)",
+     "minimum": 0,
+     "type": "integer"
+    },
+    "cell": {
+     "description": "Excel cell reference (e.g., 'A1', 'B5'). Case-insensitive. The cell must be empty; this tool will not overwrite existing values",
+     "type": "string"
+    },
+    "value": {
+     "description": "Value to set in the cell. Can be string, number, boolean, or formula starting with '=' (Union of: string, integer, number, boolean)",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path",
+    "tab_index",
+    "cell",
+    "value"
+   ],
+   "type": "object"
+  }
+ },
+ "delete_content_cell": {
+  "description": "Clear the content of a specific cell, setting it to empty.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .xlsx file starting with '/' (e.g., '/data/report.xlsx')",
+     "type": "string"
+    },
+    "tab_index": {
+     "description": "0-based worksheet tab index (e.g., 0 for first tab, 1 for second tab)",
+     "minimum": 0,
+     "type": "integer"
+    },
+    "cell": {
+     "description": "Excel cell reference to clear (e.g., 'A1', 'B5'). Case-insensitive. Sets cell value to null/empty",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path",
+    "tab_index",
+    "cell"
+   ],
+   "type": "object"
+  }
+ },
+ "create_chart": {
+  "description": "Create a chart visualization in a worksheet from a data range.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .xlsx file starting with '/' (e.g., '/data/report.xlsx')",
+       "type": "string"
+      },
+      "sheet": {
+       "description": "Name of the worksheet tab containing the source data for the chart (e.g., 'Sheet1', 'Sales Data'). Sheet must exist",
+       "type": "string"
+      },
+      "data_range": {
+       "description": "Cell range containing chart data in A1:Z99 notation (e.g., 'A1:C10', 'B2:E20'). Must be a bounded rectangular range. First column typically contains category labels, other columns contain data series",
+       "type": "string"
+      },
+      "chart_type": {
+       "default": "bar",
+       "description": "(Optional) Type of chart to create. Valid values: 'bar' (vertical bar/column chart, default), 'line' (line chart), 'pie' (pie chart)",
+       "enum": [
+        "bar",
+        "line",
+        "pie"
+       ],
+       "nullable": true,
+       "type": "string"
+      },
+      "title": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "(Optional) Optional title displayed above the chart (e.g., 'Monthly Sales'). If null, chart type name is used",
+       "nullable": true
+      },
+      "position": {
+       "default": "E2",
+       "description": "(Optional) Cell reference for top-left corner of the chart (e.g., 'E2', 'G5'). Default is 'E2'. Chart is placed in the same sheet as the data",
+       "nullable": true,
+       "type": "string"
+      },
+      "categories_column": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "(Optional) 1-based column index within data_range for category labels (X-axis). Default (null) uses first column as categories. Set to 0 to skip categories entirely. For pie charts, this determines slice labels",
+       "nullable": true
+      },
+      "include_header": {
+       "default": true,
+       "description": "(Optional) If true (default), first row of data_range is treated as series names/labels. If false, all rows are data. When true, data_range must contain at least 2 rows",
+       "nullable": true,
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "file_path",
+      "sheet",
+      "data_range"
+     ],
+     "type": "object",
+     "description": "Chart creation options including the target workbook, source range, chart type, and placement."
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "filter_tab": {
+  "description": "Filter worksheet rows using column conditions and optionally persist auto-filter criteria.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .xlsx file starting with '/' (e.g., '/data/report.xlsx')",
+       "type": "string"
+      },
+      "tab_index": {
+       "description": "0-based worksheet tab index (e.g., 0 for first tab)",
+       "minimum": 0,
+       "type": "integer"
+      },
+      "filters": {
+       "description": "List of filter condition objects. Each condition has: 'column' (column letter like 'A' or header name if use_headers=true), 'operator' (see valid operators below), 'value' (comparison value, optional for is_empty/is_not_empty). Valid operators: 'equals', 'not_equals', 'greater_than', 'less_than', 'greater_than_or_equal', 'less_than_or_equal', 'contains', 'not_contains', 'starts_with', 'ends_with', 'is_empty', 'is_not_empty'",
+       "items": {
+        "additionalProperties": false,
+        "description": "A single filter condition for filtering spreadsheet data.\n\nRequired fields:\n- column: Column letter ('A', 'B') or header name (case-insensitive)\n- operator: FilterOperator enum value\n- value: REQUIRED for all operators EXCEPT is_empty and is_not_empty\n\nExamples:\n- With value: {\"column\": \"A\", \"operator\": \"equals\", \"value\": 100}\n- With value: {\"column\": \"Status\", \"operator\": \"contains\", \"value\": \"active\"}\n- Without value: {\"column\": \"A\", \"operator\": \"is_empty\"}\n- Without value: {\"column\": \"Email\", \"operator\": \"is_not_empty\"}\n\nThe operator field uses the FilterOperator enum to ensure only valid operators are used.",
+        "properties": {
+         "column": {
+          "description": "Column identifier: either column letter (e.g., 'A', 'B', 'AA') or header name if use_headers=true (e.g., 'Name', 'Amount'). Header matching is case-insensitive",
+          "type": "string"
+         },
+         "operator": {
+          "description": "Filter operator. Valid values: 'equals' (exact match), 'not_equals', 'greater_than', 'less_than', 'greater_than_or_equal', 'less_than_or_equal' (numeric comparison), 'contains', 'not_contains', 'starts_with', 'ends_with' (string matching, case-insensitive), 'is_empty', 'is_not_empty' (null/blank checks)",
+          "enum": [
+           "equals",
+           "not_equals",
+           "greater_than",
+           "less_than",
+           "greater_than_or_equal",
+           "less_than_or_equal",
+           "contains",
+           "not_contains",
+           "starts_with",
+           "ends_with",
+           "is_empty",
+           "is_not_empty"
+          ],
+          "type": "string"
+         },
+         "value": {
+          "anyOf": [
+           {
+            "type": "string"
+           },
+           {
+            "type": "integer"
+           },
+           {
+            "type": "number"
+           },
+           {
+            "type": "boolean"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "default": null,
+          "description": "(Optional) Value to compare against. Required for all operators except 'is_empty' and 'is_not_empty'. String comparisons are case-insensitive. Numeric comparisons attempt to parse both cell and filter values as numbers",
+          "nullable": true
+         }
+        },
+        "required": [
+         "column",
+         "operator"
+        ],
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "cell_range": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "(Optional) Optional cell range to filter within (e.g., 'A1:D100', 'B5:F50'). If null, filters entire worksheet. Must be a range (A1:B10), not a single cell",
+       "nullable": true
+      },
+      "match_all": {
+       "default": true,
+       "description": "(Optional) If true (default), all filter conditions must match for a row to be included (AND logic). If false, any matching condition includes the row (OR logic)",
+       "nullable": true,
+       "type": "boolean"
+      },
+      "use_headers": {
+       "default": true,
+       "description": "(Optional) If true (default), first row is treated as column headers, excluded from filtered results, and column names in filter conditions can reference header values (case-insensitive)",
+       "nullable": true,
+       "type": "boolean"
+      },
+      "include_diagnostics": {
+       "default": false,
+       "description": "(Optional) If True, include diagnostic info when no matches found (default False for efficiency)",
+       "nullable": true,
+       "type": "boolean"
+      },
+      "compact": {
+       "default": false,
+       "description": "(Optional) Use compact CSV-style output without formatting (default False)",
+       "nullable": true,
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "file_path",
+      "tab_index",
+      "filters"
+     ],
+     "type": "object",
+     "description": "Worksheet filtering options including the target tab, filter conditions, range, and output settings."
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ }
+}

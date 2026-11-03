@@ -1,0 +1,262 @@
+{
+ "read_pdf_pages": {
+  "description": "Read PDF pages and return text, images, and strikethrough annotations.\n\nReads the specified (or all) pages of a PDF and returns per-page text,\nimage annotation keys (format 'page{N}_img{M}') for later retrieval\nvia read_image, and any strikethrough annotations found. Filled\ninteractive form (AcroForm) fields are listed by name under a\n'Form fields:' heading at the end of the page that holds them. Use this\ntool to read and analyze PDF content. For a password-protected PDF, pass\nits password in ``password``.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "description": "PDF reading settings, including the file path and optional page selection.",
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the PDF file. Must start with '/' and end with '.pdf'.",
+       "type": "string"
+      },
+      "pages": {
+       "description": "(Optional) Optional list of 1-indexed page numbers to read (e.g., [1, 3, 5]). When None or omitted, all pages in the document are read.",
+       "items": {
+        "type": "integer"
+       },
+       "nullable": true,
+       "type": "array"
+      },
+      "password": {
+       "description": "(Optional) Password for a password-protected (encrypted) PDF. Omit it for ordinary PDFs and for PDFs that open with an empty password. When a document needs a password and none is given, the tool says so; a wrong password returns a distinct 'password ... is incorrect' error.",
+       "nullable": true,
+       "type": "string"
+      }
+     },
+     "required": [
+      "file_path"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "search_pdf": {
+  "description": "Search for text occurrences across all pages of a PDF document.\n\nExtracts text from each page and performs substring or whole-word\nmatching against the query. Uses parallel processing for PDFs with\nmore than a few pages. Returns match count, positions (page, line,\ncharacter offsets), and surrounding context for each hit. Pages whose\ntext could not be extracted are named in a warning. For a\npassword-protected PDF, pass its password in ``password``.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the PDF file. Must start with '/' and end with '.pdf'.",
+     "type": "string"
+    },
+    "query": {
+     "description": "The text string to search for within the PDF. Must be non-empty.",
+     "type": "string"
+    },
+    "case_sensitive": {
+     "description": "(Optional) If True, match the exact letter casing of the query. Defaults to False (case-insensitive).",
+     "type": "boolean",
+     "nullable": true
+    },
+    "whole_word": {
+     "description": "(Optional) If True, only match the query as a complete word (bounded by word boundaries). Defaults to False.",
+     "type": "boolean",
+     "nullable": true
+    },
+    "max_results": {
+     "description": "(Optional) Maximum number of matches to return. Defaults to 100. Must be a positive integer.",
+     "type": "integer",
+     "nullable": true
+    },
+    "context_chars": {
+     "description": "(Optional) Number of characters of context before and after each match. Defaults to 50.",
+     "type": "integer",
+     "nullable": true
+    },
+    "password": {
+     "description": "(Optional) Password for a password-protected (encrypted) PDF. Omit it for ordinary PDFs and for PDFs that open with an empty password. Without it a protected PDF returns an error (never a silent zero-match result); a wrong password returns a distinct 'password ... is incorrect' error.",
+     "type": "string",
+     "nullable": true
+    }
+   },
+   "required": [
+    "file_path",
+    "query"
+   ],
+   "type": "object"
+  }
+ },
+ "create_pdf": {
+  "description": "Generate a PDF document from structured blocks and optional metadata.\n\nBuilds a PDF document in the specified directory using a list of block\ndictionaries. Use this tool to generate reports, letters, or any\nmulti-section document. Returns a confirmation string with the created\nfile path, or an error message if validation fails.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "description": "PDF creation settings, including the destination, content blocks, metadata, and page size.",
+     "properties": {
+      "directory": {
+       "description": "Target directory path. Created if it doesn't exist. Must start with '/'.",
+       "type": "string"
+      },
+      "file_name": {
+       "description": "Name for the output PDF. Must end with '.pdf'. Cannot contain '/' (no nested path segments).",
+       "type": "string"
+      },
+      "content": {
+       "description": "Non-empty list of content blocks. Each block must include a 'type' key. Block types: 'paragraph' (text, bold?, italic?), 'heading' (text, level 1-4?), 'bullet_list' (items), 'numbered_list' (items), 'table' (rows, header?), 'page_break', 'spacer' (height in points?).",
+       "items": {
+        "description": "A single content block in a PDF document.",
+        "properties": {
+         "type": {
+          "description": "Block type: 'paragraph', 'heading', 'bullet_list', 'numbered_list', 'table', 'page_break', or 'spacer'",
+          "type": "string"
+         },
+         "text": {
+          "description": "(Optional) Text content (for paragraph, heading)",
+          "nullable": true,
+          "type": "string"
+         },
+         "bold": {
+          "description": "(Optional) Bold text (paragraph only)",
+          "nullable": true,
+          "type": "boolean"
+         },
+         "italic": {
+          "description": "(Optional) Italic text (paragraph only)",
+          "nullable": true,
+          "type": "boolean"
+         },
+         "level": {
+          "description": "(Optional) Heading level 1-4 (heading only)",
+          "nullable": true,
+          "type": "integer"
+         },
+         "items": {
+          "description": "(Optional) List items (bullet_list, numbered_list)",
+          "items": {
+           "type": "string"
+          },
+          "nullable": true,
+          "type": "array"
+         },
+         "rows": {
+          "description": "(Optional) 2D array of cell values (table only)",
+          "items": {
+           "items": {
+            "type": "string"
+           },
+           "type": "array"
+          },
+          "nullable": true,
+          "type": "array"
+         },
+         "header": {
+          "description": "(Optional) Bold the first row as header (table only)",
+          "nullable": true,
+          "type": "boolean"
+         },
+         "height": {
+          "description": "(Optional) Height in points (spacer only)",
+          "nullable": true,
+          "type": "number"
+         }
+        },
+        "required": [
+         "type"
+        ],
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "metadata": {
+       "description": "(Optional) Optional metadata with 'title', 'subject', and/or 'author' embedded in the PDF document properties.",
+       "properties": {
+        "title": {
+         "description": "(Optional) Document title shown in PDF properties",
+         "nullable": true,
+         "type": "string"
+        },
+        "subject": {
+         "description": "(Optional) Document subject",
+         "nullable": true,
+         "type": "string"
+        },
+        "author": {
+         "description": "(Optional) Document author",
+         "nullable": true,
+         "type": "string"
+        }
+       },
+       "type": "object",
+       "nullable": true
+      },
+      "page_size": {
+       "description": "(Optional) Page dimensions \u2014 either 'letter' (default) or 'a4'. Case-insensitive.",
+       "type": "string",
+       "nullable": true
+      }
+     },
+     "required": [
+      "directory",
+      "file_name",
+      "content"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "read_image": {
+  "description": "Retrieve an embedded image from a PDF by its annotation key.\n\nReturns the JPEG image data for vision analysis or downstream storage.\nServes the image from the in-memory cache when a prior read_pdf_pages call\nalready extracted it, and otherwise extracts it from the document on demand,\nso the call also succeeds on a fresh server, after cache eviction, and on\nretries. The image is addressed by (document path, annotation key); no\nhidden process state has to be seeded first. For a password-protected PDF,\npass its password in ``password``.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the PDF that holds the image. Must start with '/' and end with '.pdf'.",
+     "type": "string"
+    },
+    "annotation": {
+     "description": "Image annotation key in the format 'page{N}_img{M}' (e.g., 'page1_img0') as returned in the read_pdf_pages output. A leading '@' prefix is stripped automatically. No prior call is required: an uncached image is extracted from the document on demand.",
+     "type": "string"
+    },
+    "password": {
+     "description": "(Optional) Password for a password-protected (encrypted) PDF. Omit it for ordinary PDFs and for PDFs that open with an empty password. Pass the same password given to read_pdf_pages.",
+     "type": "string",
+     "nullable": true
+    }
+   },
+   "required": [
+    "file_path",
+    "annotation"
+   ],
+   "type": "object"
+  }
+ },
+ "read_page_as_image": {
+  "description": "Render a single PDF page as a JPEG image at 144 DPI.\n\nConverts the specified page of a PDF into an image suitable for OCR\ninput, visual inspection, or thumbnail generation. Returns the\nrendered image, or an error string if the file is not found, the page\nnumber is out of range, or the document is password-protected and\n``password`` is missing or wrong.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the PDF file. Must start with '/' and end with '.pdf'.",
+     "type": "string"
+    },
+    "page_number": {
+     "description": "The page to render, 1-indexed (first page is 1). Must be between 1 and the total page count.",
+     "type": "integer"
+    },
+    "password": {
+     "description": "(Optional) Password for a password-protected (encrypted) PDF. Omit it for ordinary PDFs and for PDFs that open with an empty password. A wrong password returns a distinct 'password ... is incorrect' error.",
+     "type": "string",
+     "nullable": true
+    }
+   },
+   "required": [
+    "file_path",
+    "page_number"
+   ],
+   "type": "object"
+  }
+ }
+}

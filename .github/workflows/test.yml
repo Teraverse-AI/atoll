@@ -1,0 +1,23 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # Public repo only: skipped (no minutes, no emails) on the private dev repo.
+    if: github.repository == 'Teraverse-AI/atoll'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: uv sync
+      - name: Lint
+        run: uv run ruff check .
+      - name: Test
+        run: uv run pytest -q

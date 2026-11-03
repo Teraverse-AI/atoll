@@ -1,0 +1,748 @@
+{
+ "create_document": {
+  "description": "Create a new `.docx` file with structured content blocks and optional metadata.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "directory": {
+       "description": "Directory path starting with '/' where document will be created (e.g., '/', '/reports')",
+       "type": "string"
+      },
+      "file_name": {
+       "description": "File name ending with .docx (e.g., 'report.docx'); must not contain '/' characters",
+       "type": "string"
+      },
+      "content": {
+       "description": "List of content blocks to populate document; each block must have 'type' field: 'paragraph', 'heading', 'bullet_list', 'numbered_list', 'table', 'page_break', or 'section_break'",
+       "items": {
+        "type": "object",
+        "properties": {
+         "text": {
+          "description": "(Optional) Depends on the variant. paragraph: The paragraph text content; must not be empty | heading: The heading text content; must not be empty (Required for: paragraph, heading)",
+          "type": "string",
+          "nullable": true
+         },
+         "type": {
+          "description": "Variant selector: one of 'paragraph', 'heading', 'bullet_list', 'numbered_list', 'table', 'page_break', 'section_break'",
+          "type": "string",
+          "enum": [
+           "paragraph",
+           "heading",
+           "bullet_list",
+           "numbered_list",
+           "table",
+           "page_break",
+           "section_break"
+          ]
+         },
+         "style": {
+          "description": "(Optional) Depends on the variant. paragraph: Named Word style to apply (e.g., 'Normal', 'Quote'); null for default style | heading: Named Word style to override default (e.g., 'Heading 1'); null uses built-in heading style for level | bullet_list: Named Word style to apply; defaults to 'List Bullet' if not specified | numbered_list: Named Word style to apply; defaults to 'List Number' if not specified | table: Named Word table style to apply (e.g., 'Table Grid'); null for default table appearance",
+          "type": "string",
+          "nullable": true
+         },
+         "bold": {
+          "description": "(Optional) Whether to bold the entire paragraph text. Default: false",
+          "type": "boolean",
+          "nullable": true
+         },
+         "italic": {
+          "description": "(Optional) Whether to italicize the entire paragraph text. Default: false",
+          "type": "boolean",
+          "nullable": true
+         },
+         "level": {
+          "description": "(Optional) Heading level from 1 (largest, like Title) to 4 (smallest); values outside range are clamped",
+          "type": "integer",
+          "nullable": true
+         },
+         "items": {
+          "description": "(Optional) Depends on the variant. bullet_list: List of strings for each bullet point; must contain at least one item | numbered_list: List of strings for each numbered item; must contain at least one item (Required for: bullet_list, numbered_list)",
+          "items": {
+           "type": "string"
+          },
+          "type": "array",
+          "nullable": true
+         },
+         "rows": {
+          "description": "(Optional) 2D list of cell values where each inner list is a row; all rows must have same column count (Required for: table)",
+          "items": {
+           "items": {
+            "type": "string"
+           },
+           "type": "array"
+          },
+          "type": "array",
+          "nullable": true
+         },
+         "header": {
+          "description": "(Optional) Whether to bold the first row as a header row. Default: true",
+          "type": "boolean",
+          "nullable": true
+         },
+         "width": {
+          "description": "(Optional) Table width in inches; required for header/footer tables",
+          "type": "number",
+          "nullable": true
+         },
+         "start_type": {
+          "description": "(Optional) How the new section starts: 'new_page' (starts on new page), 'continuous' (same page), 'odd_page' (next odd page), 'even_page' (next even page). Default: 'new_page'",
+          "type": "string",
+          "nullable": true
+         }
+        },
+        "description": "(Exactly one variant, selected by 'type'. Additional required fields per variant: paragraph -> text; heading -> text; bullet_list -> items; numbered_list -> items; table -> rows; page_break -> (none); section_break -> (none).)",
+        "required": [
+         "type"
+        ]
+       },
+       "type": "array"
+      },
+      "metadata": {
+       "description": "(Optional) Optional document properties: title, subject, author, comments (shown in file properties)",
+       "nullable": true,
+       "properties": {
+        "title": {
+         "description": "(Optional) Document title shown in file properties dialog",
+         "type": "string",
+         "nullable": true
+        },
+        "subject": {
+         "description": "(Optional) Subject/topic of the document shown in file properties",
+         "type": "string",
+         "nullable": true
+        },
+        "author": {
+         "description": "(Optional) Author name shown in file properties",
+         "type": "string",
+         "nullable": true
+        },
+        "comments": {
+         "description": "(Optional) Comments/notes about the document shown in file properties",
+         "type": "string",
+         "nullable": true
+        }
+       },
+       "type": "object"
+      }
+     },
+     "required": [
+      "directory",
+      "file_name",
+      "content"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "delete_document": {
+  "description": "Delete a .docx document from the filesystem.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .docx file to delete (e.g., '/documents/old_report.docx'); operation is irreversible",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "type": "object"
+  }
+ },
+ "get_document_overview": {
+  "description": "Get document structure overview: heading hierarchy, paragraph count, and pagination info.\n\nUse this BEFORE read_document_content to see total_pages for pagination.\nReturns heading annotations (e.g., 'body.p.5') useful for navigating to specific sections.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .docx file starting with '/' (e.g., '/documents/report.docx')",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "type": "object"
+  }
+ },
+ "read_document_content": {
+  "description": "Read a `.docx` file and return structured content with stable edit identifiers.\n\nReturns paragraphs and tables with IDs like 'body.p.0', 'body.tbl.0.r.0.c.0' for targeted editing.\nReading is always paginated and pages are sized by content, so any document can be\nread whatever its length. A short document is a single page. The response reports\ntotal_pages; read a longer document by asking for each page_index in turn.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .docx file starting with '/' (e.g., '/documents/report.docx')",
+       "type": "string"
+      },
+      "page_index": {
+       "description": "(Optional) 0-based page to read. Reading is always paginated: a page holds as many paragraphs as fit in one response, so a long document simply has more pages. Omit to read the first page. The response metadata reports 'total_pages'; read the rest by asking for each page_index in turn (0 to total_pages-1).",
+       "nullable": true,
+       "type": "integer"
+      }
+     },
+     "required": [
+      "file_path"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "read_image": {
+  "description": "Read an image from document using file path and annotation key.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .docx file containing the image (e.g., '/documents/report.docx')",
+     "type": "string"
+    },
+    "annotation": {
+     "description": "Annotation key from ImageRun in read_document_content output (e.g., 'body_p_0_r0'); the '@' prefix is optional",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path",
+    "annotation"
+   ],
+   "type": "object"
+  }
+ },
+ "add_content_text": {
+  "description": "Add text at a location (paragraph or after an identifier). Use to append content.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .docx file starting with '/' (e.g., '/documents/report.docx')",
+     "type": "string"
+    },
+    "identifier": {
+     "description": "Stable identifier from read_document_content specifying where to add text (e.g., 'body.p.0' for first paragraph, 'body.p.0.r.0' for first run)",
+     "type": "string"
+    },
+    "text": {
+     "description": "The text content to insert at the specified location",
+     "type": "string"
+    },
+    "position": {
+     "description": "(Optional) Where to insert text relative to identifier: 'start'/'before' (prepend) or 'end'/'after' (append). Default: 'end'",
+     "type": "string",
+     "nullable": true
+    }
+   },
+   "required": [
+    "file_path",
+    "identifier",
+    "text"
+   ],
+   "type": "object"
+  }
+ },
+ "edit_content_text": {
+  "description": "Replace text content at a specific identifier in a .docx document.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .docx file starting with '/' (e.g., '/documents/report.docx')",
+     "type": "string"
+    },
+    "identifier": {
+     "description": "Stable identifier from read_document_content specifying the element to edit (e.g., 'body.p.0' for paragraph, 'body.p.0.r.0' for run)",
+     "type": "string"
+    },
+    "new_text": {
+     "description": "The replacement text that will completely replace the existing content at the identifier",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path",
+    "identifier",
+    "new_text"
+   ],
+   "type": "object"
+  }
+ },
+ "delete_content_text": {
+  "description": "Delete content at a specific identifier. Use to remove a paragraph or block.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the .docx file starting with '/' (e.g., '/documents/report.docx')",
+     "type": "string"
+    },
+    "identifier": {
+     "description": "Stable identifier from read_document_content specifying element to delete (e.g., 'body.p.0')",
+     "type": "string"
+    },
+    "scope": {
+     "description": "(Optional) What to delete: 'content' (clear text but keep element) or 'element' (remove entire element from document). Default: 'content'. Note: 'element' scope is not supported for cell identifiers.",
+     "type": "string",
+     "nullable": true
+    },
+    "collapse_whitespace": {
+     "description": "(Optional) For cell targets: if true and scope='content', removes all but first paragraph in cell. Default: false",
+     "type": "boolean",
+     "nullable": true
+    }
+   },
+   "required": [
+    "file_path",
+    "identifier"
+   ],
+   "type": "object"
+  }
+ },
+ "add_image": {
+  "description": "Insert an image file into a document paragraph/run at a requested position.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .docx file to modify (e.g., '/documents/report.docx')",
+       "type": "string"
+      },
+      "image_path": {
+       "description": "Absolute path to the image file to insert; must be .jpg, .jpeg, or .png (e.g., '/images/logo.png')",
+       "type": "string"
+      },
+      "identifier": {
+       "description": "Stable identifier from read_document_content specifying where to insert image (e.g., 'body.p.0')",
+       "type": "string"
+      },
+      "position": {
+       "description": "(Optional) Where to insert image in the target paragraph: 'start' or 'end'. Default: 'end'",
+       "nullable": true,
+       "type": "string"
+      },
+      "width": {
+       "description": "(Optional) Image width in inches (e.g., 3.5); if only width specified, height scales proportionally",
+       "nullable": true,
+       "type": "number"
+      },
+      "height": {
+       "description": "(Optional) Image height in inches (e.g., 2.0); if only height specified, width scales proportionally",
+       "nullable": true,
+       "type": "number"
+      }
+     },
+     "required": [
+      "file_path",
+      "image_path",
+      "identifier"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "modify_image": {
+  "description": "Modify an embedded document image by index using rotate/flip/brightness/contrast operations.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .docx file containing the image (e.g., '/documents/report.docx')",
+       "type": "string"
+      },
+      "image_index": {
+       "description": "0-based index of the image to modify; use read_document_content to find image positions",
+       "type": "integer"
+      },
+      "operation": {
+       "description": "Operation to perform: 'rotate', 'flip', 'brightness', or 'contrast'",
+       "type": "string"
+      },
+      "rotation": {
+       "description": "(Optional) For 'rotate' operation: degrees to rotate clockwise (0-360)",
+       "nullable": true,
+       "type": "integer"
+      },
+      "flip": {
+       "description": "(Optional) For 'flip' operation: direction as 'horizontal' or 'vertical'",
+       "nullable": true,
+       "type": "string"
+      },
+      "brightness": {
+       "description": "(Optional) For 'brightness' operation: multiplier where 1.0 = no change, <1 = darker, >1 = brighter",
+       "nullable": true,
+       "type": "number"
+      },
+      "contrast": {
+       "description": "(Optional) For 'contrast' operation: multiplier where 1.0 = no change, <1 = less contrast, >1 = more contrast",
+       "nullable": true,
+       "type": "number"
+      }
+     },
+     "required": [
+      "file_path",
+      "image_index",
+      "operation"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "apply_formatting": {
+  "description": "Apply text styling attributes to a run, paragraph, or cell selected by identifier.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .docx file starting with '/' (e.g., '/documents/report.docx')",
+       "type": "string"
+      },
+      "identifier": {
+       "description": "Stable identifier from read_document_content for element to format (e.g., 'body.p.0' applies to all runs in paragraph)",
+       "type": "string"
+      },
+      "bold": {
+       "description": "(Optional) Set bold formatting: true to enable, false to disable, null/omit to leave unchanged",
+       "nullable": true,
+       "type": "boolean"
+      },
+      "italic": {
+       "description": "(Optional) Set italic formatting: true to enable, false to disable, null/omit to leave unchanged",
+       "nullable": true,
+       "type": "boolean"
+      },
+      "underline": {
+       "description": "(Optional) Set underline formatting: true to enable, false to disable, null/omit to leave unchanged",
+       "nullable": true,
+       "type": "boolean"
+      },
+      "strikethrough": {
+       "description": "(Optional) Set strikethrough formatting: true to enable, false to disable, null/omit to leave unchanged",
+       "nullable": true,
+       "type": "boolean"
+      },
+      "font_size": {
+       "description": "(Optional) Font size in points (e.g., 12, 14.5); null/omit to leave unchanged (Union of: number, integer)",
+       "nullable": true,
+       "type": "number"
+      },
+      "font_color": {
+       "description": "(Optional) Font color as 6-character hex RGB string (e.g., 'FF0000' for red, '0000FF' for blue); with or without '#' prefix",
+       "nullable": true,
+       "type": "string"
+      }
+     },
+     "required": [
+      "file_path",
+      "identifier"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "header_footer": {
+  "description": "Read or set header/footer content (action-based). Use for header/footer content.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .docx file (e.g., '/documents/report.docx')",
+       "type": "string"
+      },
+      "action": {
+       "description": "Action to perform: 'read' (get content), 'set' (replace content), 'clear' (remove all content), or 'link' (link to previous section)",
+       "type": "string"
+      },
+      "area": {
+       "description": "Target area: 'header' or 'footer'",
+       "type": "string"
+      },
+      "section_index": {
+       "description": "(Optional) 0-based index of document section to modify; default 0 (first section)",
+       "nullable": true,
+       "type": "integer"
+      },
+      "content": {
+       "description": "(Optional) For 'set' action: list of content blocks (same format as create_document); required for 'set', ignored otherwise",
+       "nullable": true,
+       "items": {
+        "type": "object",
+        "properties": {
+         "text": {
+          "description": "(Optional) Depends on the variant. paragraph: The paragraph text content; must not be empty | heading: The heading text content; must not be empty (Required for: paragraph, heading)",
+          "type": "string",
+          "nullable": true
+         },
+         "type": {
+          "description": "Variant selector: one of 'paragraph', 'heading', 'bullet_list', 'numbered_list', 'table', 'page_break', 'section_break'",
+          "type": "string",
+          "enum": [
+           "paragraph",
+           "heading",
+           "bullet_list",
+           "numbered_list",
+           "table",
+           "page_break",
+           "section_break"
+          ]
+         },
+         "style": {
+          "description": "(Optional) Depends on the variant. paragraph: Named Word style to apply (e.g., 'Normal', 'Quote'); null for default style | heading: Named Word style to override default (e.g., 'Heading 1'); null uses built-in heading style for level | bullet_list: Named Word style to apply; defaults to 'List Bullet' if not specified | numbered_list: Named Word style to apply; defaults to 'List Number' if not specified | table: Named Word table style to apply (e.g., 'Table Grid'); null for default table appearance",
+          "type": "string",
+          "nullable": true
+         },
+         "bold": {
+          "description": "(Optional) Whether to bold the entire paragraph text. Default: false",
+          "type": "boolean",
+          "nullable": true
+         },
+         "italic": {
+          "description": "(Optional) Whether to italicize the entire paragraph text. Default: false",
+          "type": "boolean",
+          "nullable": true
+         },
+         "level": {
+          "description": "(Optional) Heading level from 1 (largest, like Title) to 4 (smallest); values outside range are clamped",
+          "type": "integer",
+          "nullable": true
+         },
+         "items": {
+          "description": "(Optional) Depends on the variant. bullet_list: List of strings for each bullet point; must contain at least one item | numbered_list: List of strings for each numbered item; must contain at least one item (Required for: bullet_list, numbered_list)",
+          "items": {
+           "type": "string"
+          },
+          "type": "array",
+          "nullable": true
+         },
+         "rows": {
+          "description": "(Optional) 2D list of cell values where each inner list is a row; all rows must have same column count (Required for: table)",
+          "items": {
+           "items": {
+            "type": "string"
+           },
+           "type": "array"
+          },
+          "type": "array",
+          "nullable": true
+         },
+         "header": {
+          "description": "(Optional) Whether to bold the first row as a header row. Default: true",
+          "type": "boolean",
+          "nullable": true
+         },
+         "width": {
+          "description": "(Optional) Table width in inches; required for header/footer tables",
+          "type": "number",
+          "nullable": true
+         },
+         "start_type": {
+          "description": "(Optional) How the new section starts: 'new_page' (starts on new page), 'continuous' (same page), 'odd_page' (next odd page), 'even_page' (next even page). Default: 'new_page'",
+          "type": "string",
+          "nullable": true
+         }
+        },
+        "description": "(Exactly one variant, selected by 'type'. Additional required fields per variant: paragraph -> text; heading -> text; bullet_list -> items; numbered_list -> items; table -> rows; page_break -> (none); section_break -> (none).)",
+        "required": [
+         "type"
+        ]
+       },
+       "type": "array"
+      },
+      "link_to_previous": {
+       "description": "(Optional) For 'link' action: true to link to previous section's header/footer, false to unlink; required for 'link', ignored otherwise",
+       "nullable": true,
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "file_path",
+      "action",
+      "area"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "page_margins": {
+  "description": "Set page margins. Use to adjust layout.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .docx file (e.g., '/documents/report.docx')",
+       "type": "string"
+      },
+      "action": {
+       "description": "Action to perform: 'read' (get current margins) or 'set' (modify margins)",
+       "type": "string"
+      },
+      "section_index": {
+       "description": "(Optional) 0-based index of document section to read/modify; default 0 (first section)",
+       "nullable": true,
+       "type": "integer"
+      },
+      "top": {
+       "description": "(Optional) For 'set' action: top margin in inches (e.g., 1.0); null to leave unchanged",
+       "nullable": true,
+       "type": "number"
+      },
+      "bottom": {
+       "description": "(Optional) For 'set' action: bottom margin in inches (e.g., 1.0); null to leave unchanged",
+       "nullable": true,
+       "type": "number"
+      },
+      "left": {
+       "description": "(Optional) For 'set' action: left margin in inches (e.g., 1.25); null to leave unchanged",
+       "nullable": true,
+       "type": "number"
+      },
+      "right": {
+       "description": "(Optional) For 'set' action: right margin in inches (e.g., 1.25); null to leave unchanged",
+       "nullable": true,
+       "type": "number"
+      }
+     },
+     "required": [
+      "file_path",
+      "action"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "page_orientation": {
+  "description": "Set page orientation (portrait/landscape). Use to change orientation.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .docx file (e.g., '/documents/report.docx')",
+       "type": "string"
+      },
+      "action": {
+       "description": "Action to perform: 'read' (get current orientation) or 'set' (change orientation)",
+       "type": "string"
+      },
+      "section_index": {
+       "description": "(Optional) 0-based index of document section to read/modify; default 0 (first section)",
+       "nullable": true,
+       "type": "integer"
+      },
+      "orientation": {
+       "description": "(Optional) For 'set' action: target orientation 'portrait' or 'landscape'; required for 'set', ignored for 'read'",
+       "nullable": true,
+       "type": "string"
+      }
+     },
+     "required": [
+      "file_path",
+      "action"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ },
+ "comments": {
+  "description": "Read, add, or delete comments (action: read | add | delete). Use for document comments.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "input": {
+     "properties": {
+      "file_path": {
+       "description": "Absolute path to the .docx file (e.g., '/documents/report.docx')",
+       "type": "string"
+      },
+      "action": {
+       "description": "Action to perform: 'read' (list all comments), 'add' (create new comment), or 'delete' (remove comment by ID)",
+       "type": "string"
+      },
+      "identifier": {
+       "description": "(Optional) For 'add' action: stable identifier from read_document_content specifying where to attach comment (e.g., 'body.p.0'); required for 'add'",
+       "nullable": true,
+       "type": "string"
+      },
+      "text": {
+       "description": "(Optional) For 'add' action: the comment text content; required for 'add'",
+       "nullable": true,
+       "type": "string"
+      },
+      "author": {
+       "description": "(Optional) For 'add' action: author name for the comment; optional, defaults to empty string",
+       "nullable": true,
+       "type": "string"
+      },
+      "comment_id": {
+       "description": "(Optional) For 'delete' action: the integer ID of the comment to delete (from 'read' action output); required for 'delete'",
+       "nullable": true,
+       "type": "integer"
+      }
+     },
+     "required": [
+      "file_path",
+      "action"
+     ],
+     "type": "object"
+    }
+   },
+   "required": [
+    "input"
+   ],
+   "type": "object"
+  }
+ }
+}

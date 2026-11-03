@@ -1,0 +1,134 @@
+{
+ "list_files": {
+  "description": "List files and folders in a path; each entry shows name and type (file/folder). Use to browse a directory.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "path": {
+     "description": "(Optional) Absolute path within the sandbox filesystem to list. Must start with '/'. Accepts either a '/'-rooted sandbox path or a path as reported by this server's other tools. Default: '/' (sandbox root). Example: '/documents' or '/data/uploads'. Returns a newline-separated string where each line describes one entry: \"'name' (folder)\\n\" for directories, \"'name' (mime/type file) N bytes\\n\" for files. MIME type is guessed from extension ('unknown' if undetectable). Returns '[not found: path]', '[permission denied: path]', or '[not a directory: path]' for errors. Returns 'No items found' for empty directories.",
+     "type": "string",
+     "nullable": true
+    }
+   },
+   "type": "object"
+  }
+ },
+ "read_text_file": {
+  "description": "Read the contents of a text file. Only files with supported extensions (e.g. .txt, .json, .csv, .py, .md, .xml, .yaml, .htm, .html, .sh) are readable. Use to read configs, logs, or source. Reads the whole file by default; pass max_size to cap the read at a byte count and fail on oversized files instead of loading them. MIME email (.eml) files are supported and come back decoded: headers, plain-text and HTML body parts, and an attachment manifest.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the text file within the sandbox filesystem. REQUIRED. Must start with '/'. Supported extensions: txt, json, csv, py, md, eml, xml, yaml, yml, js, ts, jsx, tsx, htm, html, css, scss, less, java, c, cpp, h, hpp, rs, go, rb, php, sh, bash, zsh, fish, ps1, bat, cmd, sql, graphql, gql, toml, ini, cfg, conf, env, properties, log, gitignore, dockerignore, editorconfig, rst, tex, bib. Also supports extensionless files: Makefile, Dockerfile, Vagrantfile. Example: '/config/settings.json' or '/src/main.py'. Returns the complete text content of the file as a string. Raises FileNotFoundError if file doesn't exist, ValueError for unsupported extensions, encoding errors, or a file larger than max_size, RuntimeError for other read failures. Note: the server applies no general size cap of its own, so very large files (>3GB) will succeed but may be slow and memory-intensive; pass max_size to cap the read by byte count. Note: '.eml' (MIME email) files are decoded rather than returned verbatim - you get a '## Headers' section, one '## Body' section per plain-text or HTML body part (HTML as raw source, never rendered), and a '## Attachments' manifest listing each attachment's name, type, and size; attachment payloads are not returned. Emails over 25 MB are refused.",
+     "type": "string"
+    },
+    "encoding": {
+     "description": "(Optional) Character encoding for reading the file. Default: 'utf-8'. Common values: 'utf-8', 'latin-1', 'ascii', 'utf-16', 'cp1252'. Raises ValueError if the file cannot be decoded with the specified encoding. For '.eml' files each body part is decoded with the charset it declares and this value is only the fallback for parts that declare none.",
+     "type": "string",
+     "nullable": true
+    },
+    "max_size": {
+     "description": "(Optional) Maximum size in bytes the file is allowed to have, checked against the file on disk before any content is read. Default: 0, meaning no limit \u2014 the server imposes no size cap of its own, so a read fails on size only when you pass a positive max_size. Pass a positive byte count to cap the read: a file larger than max_size raises ValueError('File too large: <actual> bytes exceeds max_size of <max_size> bytes') and returns no content, never a truncated read. A file exactly max_size bytes is read. Negative values raise ValueError. Files above 3GB are still read when max_size allows it, but log a slow / high-memory warning.",
+     "type": "integer",
+     "nullable": true
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "type": "object"
+  }
+ },
+ "read_image_file": {
+  "description": "Read an image file and return it for vision APIs. Use to pass images to vision-capable agents.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the image file within the sandbox filesystem. REQUIRED. Must start with '/'. Supported formats: PNG, JPG, JPEG, GIF, WEBP (case-insensitive). Example: '/images/screenshot.png' or '/uploads/photo.jpg'. Returns an Image object with 'data' (binary image content) and 'format' (string: 'png', 'jpeg', 'gif', or 'webp'). Raises FileNotFoundError if file doesn't exist, ValueError for unsupported formats or non-file paths, RuntimeError for read failures.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "type": "object"
+  }
+ },
+ "search_files": {
+  "description": "Search for files matching a glob pattern in the given directory. Uses glob syntax (not regex): * matches any chars, ? matches one char.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "pattern": {
+     "description": "Glob pattern to match filenames (not full paths). Uses shell-style wildcards: '*' matches any characters, '?' matches single character, '[seq]' matches any character in seq. Does NOT support '**' for recursive directory matching (use 'recursive' parameter instead). Examples: '*.json' (all JSON files), 'report_*.csv' (CSV files starting with 'report_'), 'data_?.txt' (data_1.txt, data_a.txt, etc.). Returns a string with format: 'Found N file(s) matching 'pattern':\\n' followed by newline-separated absolute paths within the sandbox. If no matches: 'No files matching 'pattern' found in path'. Error cases return bracketed messages: '[not found: path]', '[access denied: path]', '[not a directory: path]', '[permission denied: path]'.",
+     "type": "string"
+    },
+    "path": {
+     "description": "(Optional) Directory path within the sandbox to search in. Must start with '/'. Default: '/' (sandbox root). Example: '/documents' or '/data/exports'",
+     "type": "string",
+     "nullable": true
+    },
+    "recursive": {
+     "description": "(Optional) Search recursively through all subdirectories. Default: true. Note: Symlinks pointing outside the sandbox are skipped for security.",
+     "type": "boolean",
+     "nullable": true
+    },
+    "max_results": {
+     "description": "(Optional) Maximum number of matching files to return. Default: 100. Set to 0 for unlimited results. When the limit is reached, results are truncated and a '(Results limited to N)' message is appended.",
+     "type": "integer",
+     "nullable": true
+    }
+   },
+   "required": [
+    "pattern"
+   ],
+   "type": "object"
+  }
+ },
+ "get_file_metadata": {
+  "description": "Return metadata for a file or directory (path, type, size, MIME type, permissions, modified time). Use to check existence and type.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "file_path": {
+     "description": "Absolute path to the file or directory within the sandbox filesystem. REQUIRED. Must start with '/'. Accepts either a '/'-rooted sandbox path or a path as reported by this server's other tools. Example: '/documents/report.pdf' or '/data/config.json'. Returns a newline-separated string containing: Path, Type (file/directory/symlink), MIME type (for files), Size (in bytes and human-readable), Permissions (rwx format and octal), Modified/Accessed/Created timestamps (ISO 8601), Inode, Device, Hard links count. Returns '[not found: path]' if path doesn't exist, '[access denied: path]' if outside sandbox, '[permission denied: path]' for permission errors.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "type": "object"
+  }
+ },
+ "get_directory_tree": {
+  "description": "Display a directory tree structure with ASCII tree visualization.",
+  "parameters": {
+   "additionalProperties": false,
+   "properties": {
+    "path": {
+     "description": "(Optional) Directory path within the sandbox to display as a tree. Must start with '/'. Default: '/' (sandbox root). Example: '/documents' or '/project/src'. Returns an ASCII tree representation using box-drawing characters. Format: root path on first line, then indented entries with connectors ('+-- ' for last items, '|-- ' for others). Directories end with '/'. Files show '(N bytes)' suffix when show_size is true. Returns '[not found: path]', '[access denied: path]', '[not a directory: path]' for errors, or '(empty)' for empty directories.",
+     "type": "string",
+     "nullable": true
+    },
+    "max_depth": {
+     "description": "(Optional) Maximum directory depth to traverse, where 1 shows only immediate children. Range: 1-10 (values outside this range are clamped). Default: 3. Higher values show more nested structure but take longer.",
+     "type": "integer",
+     "nullable": true
+    },
+    "include_files": {
+     "description": "(Optional) Include files in the tree output. Default: true. When false, only directories are shown. Directories are always included regardless of this setting.",
+     "type": "boolean",
+     "nullable": true
+    },
+    "show_size": {
+     "description": "(Optional) Show file sizes in bytes next to each file. Default: false. Format: 'filename (N bytes)'. Only applies when include_files is true.",
+     "type": "boolean",
+     "nullable": true
+    }
+   },
+   "type": "object"
+  }
+ }
+}

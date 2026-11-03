@@ -1,0 +1,33 @@
+[project]
+name = "atoll-tools"
+version = "0.1.0"
+description = "Native Python tool functions for Atoll (replaces Archipelago's mcp_servers/)"
+requires-python = ">=3.12"
+dependencies = [
+    "openpyxl>=3.1",
+    "pymupdf>=1.24",
+    "python-docx>=1.1.2",
+    "pydantic>=2.7",
+    "reportlab>=4.0",
+    "pillow>=10.0",
+    "atoll-environment",
+]
+
+[tool.uv.sources]
+atoll-environment = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Core plumbing plus one package per tool server, laid out like Archipelago's
+# mcp_servers/: native_tools/<module>/<server_package>/.
+packages = [
+    "core/atoll_tools",
+    "filesystem/filesystem_server",
+    "spreadsheets/sheets_server",
+    "pdfs/pdf_server",
+    "code/code_execution_server",
+    "documents/docs_server",
+]

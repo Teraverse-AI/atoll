@@ -1,0 +1,15 @@
+{
+  "statement_balance": 18250.75,
+  "deposits_in_transit": [{"ref": "DEP-1031", "amount": 2400.00}],
+  "outstanding_checks": [
+    {"ref": "CHK-2041", "amount": 1150.50},
+    {"ref": "CHK-2043", "amount": 320.00}
+  ],
+  "adjusted_bank_balance": 19180.25,
+  "book_balance": 19165.25,
+  "unbooked_bank_items": [
+    {"ref": "FEE-OCT", "amount": -25.00},
+    {"ref": "INT-OCT", "amount": 40.00}
+  ],
+  "adjusted_book_balance": 19180.25
+}

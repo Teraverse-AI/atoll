@@ -1,0 +1,21 @@
+Atoll — Agentic Task Ontology for LLM
+Copyright 2026 Teraverse Limited
+
+This product includes software adapted from Archipelago
+(https://github.com/Mercor-Intelligence/archipelago),
+Copyright Mercor Intelligence, licensed under the Apache License, Version 2.0.
+
+In particular:
+- agents/runner/loop.py is adapted from Archipelago's loop_truncated_tools_agent
+  (agents/runner/agents/loop_truncated_tools_agent/).
+- The LLM layer under agents/runner/utils/ contains files vendored BYTE-IDENTICAL
+  from Archipelago's agents/runner/utils/ at a pinned upstream commit, alongside
+  thin local shims; the exact file-by-file provenance (verbatim vs. modified,
+  with checksums) is recorded in agents/runner/utils/PATCHES.md.
+- The tool implementations under native_tools/ (the filesystem/, spreadsheets/,
+  pdfs/, and code/ modules) are adapted from the corresponding Archipelago MCP
+  servers (mcp_servers/), preserving their model-visible tool names, schemas,
+  descriptions, and output formats.
+Adapted files carry a "Modified from Mercor-Intelligence/archipelago" header;
+vendored-verbatim files intentionally carry no header and are listed in
+PATCHES.md instead.

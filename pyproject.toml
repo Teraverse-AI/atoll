@@ -1,0 +1,39 @@
+[project]
+name = "atoll"
+version = "0.1.0"
+description = "Atoll — lightweight Archipelago-compatible harness for running and evaluating AI agents"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = [
+    "atoll-tools",
+    "atoll-agents",
+    "atoll-environment",
+]
+
+[tool.uv.sources]
+atoll-tools = { workspace = true }
+atoll-agents = { workspace = true }
+atoll-environment = { workspace = true }
+
+[tool.uv.workspace]
+members = ["native_tools", "agents", "environment"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# Tool functions intentionally catch Exception at the boundary (errors become
+# model-readable observations), so bugbear/tryceratops-style rules are not enabled.
+select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+# native_tools is recursive: each tool-server module carries its own tests/ dir.
+testpaths = ["native_tools", "agents/tests", "environment/tests"]

@@ -1,0 +1,20 @@
+# Defense in depth: the Dockerfiles COPY only named package dirs, but never let
+# private or bulky files into any build context.
+.git
+.venv
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/tests
+.env
+.env.*
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+prompt.md
+docs/private
+.claude
+runs
+scripts/export_public.sh
+**/.DS_Store

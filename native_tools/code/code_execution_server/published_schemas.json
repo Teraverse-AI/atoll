@@ -1,0 +1,42 @@
+{
+ "python_code_execution": {
+  "description": null,
+  "parameters": {
+   "properties": {
+    "code": {
+     "description": "Python source code to run.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "code"
+   ],
+   "type": "object"
+  }
+ },
+ "code_exec": {
+  "description": "Execute a shell command in a sandboxed environment. The 'code' parameter is a shell command string (e.g., 'ls -la', 'pip install pandas'). To run Python, use 'python -c \"your_code\"' or write a script file and execute it. Returns stdout, stderr, and exit code. Do NOT pass raw Python code directly. /proc and /sys are unavailable, so process tools such as ps, top and pgrep do not work.",
+  "parameters": {
+   "properties": {
+    "request": {
+     "description": "(Optional) Alternate wrapper form. Prefer the top-level `code` parameter.",
+     "properties": {
+      "code": {
+       "description": "(Optional) Shell command to execute in bash (NOT a Python interpreter). Pass it in exactly one of `code` or `request.code`; a call carrying neither is rejected. Commands run in the sandbox root directory (/filesystem) with a default timeout of 300 seconds. Examples: (1) Simple Python one-liner: `python -c 'print(1+1)'` (2) Multi-line Python script: `cat > script.py << 'EOF'\\nimport pandas\\nprint(pandas.__version__)\\nEOF && python script.py` (3) Shell commands: `ls -la`, `echo hello`, `pip install requests` (4) File operations: `mkdir mydir && touch mydir/file.txt`. Pass an empty string to execute a no-op shell command.",
+       "nullable": true,
+       "type": "string"
+      }
+     },
+     "type": "object",
+     "nullable": true
+    },
+    "code": {
+     "description": "(Optional) Shell command to execute in bash (NOT a Python interpreter). Pass it in exactly one of `code` or `request.code`; a call carrying neither is rejected. Commands run in the sandbox root directory (/filesystem) with a default timeout of 300 seconds. Examples: (1) Simple Python one-liner: `python -c 'print(1+1)'` (2) Multi-line Python script: `cat > script.py << 'EOF'\\nimport pandas\\nprint(pandas.__version__)\\nEOF && python script.py` (3) Shell commands: `ls -la`, `echo hello`, `pip install requests` (4) File operations: `mkdir mydir && touch mydir/file.txt`. Pass an empty string to execute a no-op shell command.",
+     "type": "string",
+     "nullable": true
+    }
+   },
+   "type": "object"
+  }
+ }
+}
