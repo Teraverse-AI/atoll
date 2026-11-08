@@ -16,6 +16,11 @@ Native port of Archipelago's [`mcp_servers/spreadsheets`](https://github.com/Mer
 | `create_chart` | Bar/line/pie chart from a data range. |
 | `filter_tab` | Filter rows by column conditions; optionally persist auto-filter criteria. |
 
-Package: `sheets_server/` · Tests: `tests/`. Optional LibreOffice (`soffice`) is used
-for formula recalculation like upstream; without it, formula strings are shown with
-the same upstream warning.
+Package: `sheets_server/` · Tests: `tests/`. LibreOffice (`soffice`) is used for formula
+recalculation like upstream — it is installed in `atoll-runner`, as in Archipelago's
+environment image; without it (e.g. a bare host run), formula strings are shown with the
+same upstream warning.
+
+Opt-in (off by default, not part of Archipelago's surface — see
+[`../README.en.md`](../README.en.md#highlight-the-libreoffice-office-layer)):
+`recalculate_spreadsheet` in `sheets_server/office_tools.py`.

@@ -26,8 +26,8 @@ Current fixes
   never as the model's answer (the loop would otherwise finalize "No content"
   and the run would grade as a failure).
   → retried up to twice, DOUBLING the token budget each time. The model's
-  configuration is never changed mid-run (no thinking-disabled fallback —
-  dropped 2026-11-03): every scored answer stays attributable to one setup,
+  configuration is never changed mid-run (no thinking-disabled fallback):
+  every scored answer stays attributable to one setup,
   which is what makes benchmark results comparable.
 
 Retried attempts' token spend is not added to the run's UsageTracker (only the
@@ -37,7 +37,7 @@ returned response is tracked by the loop) — same characteristic as upstream's
 
 from typing import Any
 
-ARK_PREFIXES = ("volcengine/", "volcengineC/")
+ARK_PREFIXES = ("volcengine/",)
 # Model-name markers of ARK models with the shared thinking/max_tokens budget.
 # Extend as measured (the GLM plan variants show the same family behavior).
 ARK_THINKING_MARKERS = ("deepseek", "glm")

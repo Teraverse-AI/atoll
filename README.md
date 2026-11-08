@@ -13,7 +13,7 @@
 
 1. **Environment（环境）**：工作区生命周期管理（初始化填充、快照）——一个纯 Python 库，无网关进程
 2. **Agents（智能体）**：可扩展的智能体运行器，内含可配置智能体实现的注册表
-3. **Grading（评分）**：通过比较运行前后的快照为智能体表现打分 *（暂缓实现——见 [grading/README.md](./grading/README.md)）*
+3. **Grading（评分）**：对智能体新增或修改的文件（运行前后快照之差）逐条评分，与参考答案对照，按权重折算分数——见 [grading/README.md](./grading/README.md)
 
 **设计理念——以复用实现可比性，而非重新实现。** 运行中的模型无法区分 Atoll 与 Archipelago，评测分数可直接比较，因为模型能观察到的一切都来自 Mercor 本身，而非仿制：
 
@@ -66,6 +66,9 @@ cp .env.example .env
 # 直连模式——留空 LITELLM_BASE_URL，改为设置厂商密钥
 #   (OPENAI_API_KEY=..., GEMINI_API_KEY=..., VOLCENGINE_API_KEY=..., ...)；
 #   此时模型名使用 litellm 的厂商前缀，例如 "gemini/gemini-2.5-pro"。
+# 两者并用——代理模式加上 ATOLL_DIRECT_MODELS=volcengine/（逗号分隔的模型名前缀，
+#   类似 NO_PROXY），这些模型改为直连；网络关闭时须在 ATOLL_EGRESS_ALLOW 中列出两个主机。
+#   直连调用的逐模型请求设置（厂商模型 ID、思考 / 推理强度）见 agents/runner/model_config.yaml。
 ```
 
 ### 2. 构建代码执行沙箱镜像（仅需一次）
@@ -76,11 +79,13 @@ scripts/build_sandbox_image.sh
 #   (numpy, pandas, scipy, statsmodels, sympy, …)
 ```
 
-### 3. 运行示例
+### 3. 运行任务
 
 ```bash
-uv run atoll-run --task examples/q001_adjusting_entry --model gpt-4o-mini
+uv run atoll-run --task <任务目录> --model <模型>
 ```
+
+`<任务目录>` 是你自己的任务，采用下文[任务布局](#任务布局)中的任一种；`<模型>` 是你的端点或厂商提供的任意模型。
 
 运行器将会：
 1. 将任务的工作区模板复制到新的运行目录
@@ -92,7 +97,7 @@ uv run atoll-run --task examples/q001_adjusting_entry --model gpt-4o-mini
 ### 4. 查看结果
 
 ```bash
-RUN=$(ls -td runs/q001_adjusting_entry/* | head -1)
+RUN=$(ls -td runs/<任务编号>/* | head -1)
 cat $RUN/result.json | jq .status
 cat $RUN/trajectory.jsonl | tail -1 | jq .
 ls $RUN   # workspace/ initial_snapshot.tar.gz final_snapshot.tar.gz trajectory.jsonl result.json
@@ -113,7 +118,7 @@ Environment 是一个纯 Python 库（`atoll_env`）加一个轻量 CLI——Arc
 | `POST /apps`（热切换 MCP 配置） | `load_tools([...])`——选择本次运行挂载哪些工具服务器 |
 | MCP 网关进程 | —（工具为进程内函数） |
 
-`atoll_env.sandbox.ContainerSandbox` 是模型编写代码时**必需**的容器沙箱：Docker Desktop；`--network none`、限制内存、仅挂载工作区。不存在无沙箱的回退方案。容器化评测（机器上只需 Docker，无需安装 Python）中，每个评测以一对相互隔离的 runner + sandbox 容器运行（runner 网络默认**关闭**：只能访问 LLM 端点），可由你自己的流水线启动——UI、服务器、CI 或其他任何方式均可；见 [容器化评测](./environment/README.md#containerized-evals)。
+`atoll_env.sandbox.ContainerSandbox` 是模型编写代码时**必需**的容器沙箱：Docker Desktop；`--network none`、限制内存、仅挂载工作区（挂载于 `/filesystem`，与 Archipelago 代码执行根目录一致）。不存在无沙箱的回退方案。容器化评测（机器上只需 Docker，无需安装 Python）中，每个评测以一对相互隔离的 runner + sandbox 容器运行（runner 网络默认**关闭**：只能访问 LLM 端点），可由你自己的流水线启动——UI、服务器、CI 或其他任何方式均可；见 [容器化评测](./environment/README.md#containerized-evals)。
 
 > 更多细节见 [Environment README](./environment/README.md)。
 
@@ -123,7 +128,7 @@ Environment 是一个纯 Python 库（`atoll_env`）加一个轻量 CLI——Arc
 
 ```
 native_tools/
-├── core/              # atoll_tools 包：注册表、schema 生成、工作区上下文
+├── core/              # atoll_tools 包：注册表、schema 生成、工作区上下文、LibreOffice 层（office.py）
 ├── filesystem/        # ✅ filesystem_server — 6 个工具
 ├── spreadsheets/      # ✅ sheets_server — 全部 12 个工具，含 edit_spreadsheet、filter_tab
 ├── pdfs/              # ✅ pdf_server — 5 个工具（PyMuPDF + reportlab）
@@ -135,6 +140,8 @@ native_tools/
 ```
 
 模型看到的工具名遵循 FastMCP 的网关规则，与 Archipelago 完全一致：挂载多个服务器时，工具以 `{server_name}_{tool_name}` 形式出现（例如 `filesystem_server_list_files`）。每个已移植的服务器还内置了 Archipelago 网关在固定上游提交上返回的原始 `tools/list` JSON（`published_schemas.json`）并原样提供，因此参数 schema——包括上游的扁平化处理、`(Optional)`/nullable 标注以及嵌套的 `input` 封装——逐字节一致；一致性由测试锁定。
+
+**亮点：LibreOffice 办公组件层。** Archipelago 自带 LibreOffice，`sheets_server` 的 `read_tab` 和评分器都用它重算公式；Atoll 在 `atoll-runner` 镜像中安装同样的组件、逐字保留上游调用，因此 `read_tab` 与上游行为一致。`core/atoll_tools/office.py` 在此之上提供**强制全量重算**（LibreOffice 默认沿用文件缓存值，占位缓存会得到一片 0）与失败即报错的转换，供评分器和可选办公工具共用。可选办公工具（`sheets_server` 的 `recalculate_spreadsheet`、`docs_server` 的 `convert_document_to_pdf`）**默认关闭**，开启方式 `--office-tools on` / `task.toml` 的 `[atoll] office_tools` / `$ATOLL_OFFICE_TOOLS`；关闭时模型可见的工具表面与 Archipelago 完全一致（[详情](./native_tools/README.md#亮点libreoffice-办公组件层)）。
 
 > 完整的工具对齐矩阵及尚未移植的 Archipelago 服务器列表，见 [原生工具 README](./native_tools/README.md)。
 
@@ -161,13 +168,13 @@ Agents 组件对应 Archipelago 的 `agents/runner/`。核心循环（`agents/ru
 
 `loop.py` 只依赖 `ToolProvider` 接口——将 `NativeToolProvider` 替换为未来指向真实 Archipelago 网关的 `McpToolProvider`，无需修改循环代码。
 
-**停止条件**——Atoll 评测框架的默认值，可在 `task.toml` 中按任务覆盖，或通过 CLI/环境变量覆盖：`max_steps=250`、`timeout=3600s`、token 预算关闭（启用时，预算耗尽后会再给一个带警告的最终回合）。移植的循环本身保留上游的内部默认值（`100`/`10800s`/关闭）供库调用使用；`examples/` 中的示例任务在 `task.toml` 中设定各自的值。
+**停止条件**——Atoll 评测框架的默认值，可在 `task.toml` 中按任务覆盖，或通过 CLI/环境变量覆盖：`max_steps=250`、`timeout=3600s`、token 预算关闭（启用时，预算耗尽后会再给一个带警告的最终回合）。移植的循环本身保留上游的内部默认值（`100`/`10800s`/关闭）供库调用使用。
 
 > 更多细节见 [Agents README](./agents/README.md)。
 
 ### Grading 评分
 
-暂缓实现。它将使用的契约已经就绪（初始/最终快照、`trajectory.jsonl`、`gold_answer.json`、`task.toml` 中的 `[[atoll.verifiers]]`）；见 [grading/README.md](./grading/README.md)。
+`atoll-grade --task <任务目录> --run <运行目录> --judge-model <模型>`（容器方式：`scripts/run_grade.sh`，渲染阶段无网络、评审阶段只能访问评审端点）。按评分标准逐条调用 LLM 评审（评审模型由你选择），评审对象为智能体新增或修改的文件；每次运行一个加权得分率，每个模型取多次运行的平均分。文件由 Archipelago 自己的提取器（逐字节 vendored）渲染。与 Archipelago 不同，Atoll 的评审会看到任务附带的、由专家准备的参考答案（golden），并按用户实际看到的样子评判表格：每个工作簿在渲染前先用 LibreOffice 在本地强制全量重算（重算失败即终止评分），超过 500 行的工作表另附由程序基于全部数据行计算的数据概要。详见 [grading/README.md](./grading/README.md)。
 
 ---
 
@@ -182,6 +189,9 @@ Agents 组件对应 Archipelago 的 `agents/runner/`。核心循环（`agents/ru
 | 网络 | [APEX-Agents 论文](https://arxiv.org/abs/2601.14242)写明：*"Web search is turned off for the benchmark to keep evaluations reproducible"*（§3.1）；我们在开源仓库中未发现容器层面的出网限制 | **并非 Mercor 的实现**——Atoll 将“关闭网络搜索”理解为“不获取任何外部信息”（若可自由联网，智能体能获取其可达的任何信息），因此容器化评测提供 `network` 设置（与 `max_steps` 同类），默认**关闭**：runner 只能经每个评测专属的 egress 代理访问白名单中的 LLM 端点；代码沙箱始终无网络（[详情](./environment/README.md#network-setting)） |
 | 任务格式 | Harbor 任务包（`task.toml`、`instruction.md`、快照） | 相同布局 |
 | 智能体循环 | `loop_truncated_tools_agent` | 忠实移植：裁剪、预算、溢出、逐字节一致的模板（见 NOTICE） |
+| 系统提示词 | 所有任务、所有模型共用同一提示词（APEX-Agents 论文附录 D.2），存于文档中，由调用方写入初始消息 | 同样只有一个默认提示词：`atoll_agents.md`（以 Mercor 原文为基础的草稿；原文另以 `apex_agents.md` 逐字保留作参考），位于 [`agents/runner/system_prompts/`](./agents/runner/system_prompts/)；可全局或按任务覆盖（按任务优先） |
+| 评分 | 按评分标准逐条调用 LLM 评审（`output_llm`，Gemini 3 Flash，thinking 设为 low），提供标准与改动文件（本地提取器，或远程解析服务 Reducto）；报告未加权的标准通过率与 Pass@1 | 逐条 LLM 评审（评审模型由你选择）；**评审还会看到参考答案（golden）**；同一个本地提取器（逐字节 vendored），但工作簿**强制 LibreOffice 全量重算**、失败即终止，不用远程解析；只有一个**加权**得分率，没有确定性检查——[详情](./grading/README.md#与-mercor-评分的差异) |
+| 办公组件（LibreOffice） | 环境镜像安装 `libreoffice-calc`/`libreoffice-core`（`read_tab` 重算公式），评分器另带一份 | `atoll-runner` 安装同样的组件，上游调用逐字保留；另有强制全量重算的 `atoll_tools.office`，以及默认关闭的可选办公工具（[详情](./native_tools/README.md#亮点libreoffice-办公组件层)） |
 | LLM 客户端层 | `runner/utils/llm.py`：厂商请求适配、重试、缓存断点 | 同一批文件，在固定提交上逐字节内置；服务端基础设施通过 shim 关闭（`agents/runner/utils/PATCHES.md`） |
 | 模型路由 | 直连厂商或经其代理 | 相同：代理或直连，两种方式请求适配一致 |
 | 重试归属 | 评测客户端负责重试；代理直通 | 相同（为 Atoll 部署的网关应将重试次数设为 0） |
@@ -196,10 +206,16 @@ Agents 组件对应 Archipelago 的 `agents/runner/`。核心循环（`agents/ru
 uv sync                                    # 安装 uv workspace（3 个包）
 uv run pytest                              # 运行测试套件
 uv run ruff check .                        # 代码检查
-uv run python scripts/generate_task_workspaces.py   # 重新生成任务样例文件（xlsx/pdf）
 ```
 
-示例任务以 Harbor 风格的任务包形式存放于 `examples/`（`task.toml` + `instruction.md` + `workspace/` + `gold_answer.json`）——仅为少量示例，并非完整任务集；见 [examples/README.md](./examples/README.md)。
+### 任务布局
+
+**任务包**（Harbor 风格）：`task.toml`（元数据、`[agent]` 停止条件、`[atoll]` 设置）+ `instruction.md`（用户消息）+ `workspace/`（智能体的初始文件），评分另需 `rubrics.json` + `reference/`（参考答案，仅供评审）。
+
+`atoll-run` 与 `scripts/run_eval.sh` 也接受**交付任务**：`prompt.md`（用户消息，智能体看不到这个文件）、
+`filesystem/`（挂载为 `/filesystem`）、`reference/`（`rubrics.json` + `outputs/`，仅供评审、从不挂载），
+以及可选的 `system_prompt.md` 和 `task.toml`。其运行结果写入 `results/<model>/run_<n>/`（`<model>` 为模型别名的最后一段，或用 `--model-name` 指定——例如把服务商的完整模型 ID 归入更短的名称；
+`n` 默认取下一个空号，也可用 `--out`/`--output` 指定目录），以 `agent_outputs/`（智能体新增或修改的文件）代替 `workspace/`。
 
 容器化评测：先运行 `scripts/build_runner_image.sh` 与 `scripts/build_sandbox_image.sh`，再用 `scripts/run_eval.sh`（每个评测一对隔离容器；见 [Environment README](./environment/README.md#containerized-evals)）。
 

@@ -5,8 +5,8 @@
 The real implementation is Archipelago's own ``runner/utils/llm.py``, vendored
 byte-identical (see ``runner/utils/PATCHES.md`` for the pinned commit and the
 file-by-file manifest). This module only re-exports it under the names the
-loop, the tests and the e2e harness already use, and coerces the two
-previously-optional arguments (``tools``/``extra_args`` may be None here).
+loop, the tests and the e2e harness use, and coerces two arguments upstream
+requires (``tools``/``extra_args`` may be None here).
 
 What this buys Atoll:
 
@@ -24,6 +24,13 @@ What this buys Atoll:
   endpoint (e.g. a LiteLLM proxy) exactly as upstream's proxy branch sends
   them; with them unset, kwargs are left untouched and litellm routes DIRECT
   to the provider (provider-prefixed model + provider API keys from env).
+* **Per-model settings** (``runner/model_config.yaml``, optional): a model name
+  maps to the provider model id, credentials, headers and request settings,
+  like a proxy's model_list (see ``runner/model_config.py``).
+* **Spend tags**: calls routed to the endpoint also carry
+  ``x-atoll-task`` / ``x-atoll-trajectory`` headers (a LiteLLM proxy can
+  harvest them via ``litellm_settings.extra_spend_tag_headers``), next to
+  upstream's own spend-tag headers.
 * **Upstream retry semantics** (``runner/utils/decorators.with_retry``):
   same retry_on/skip_on/skip_if sets, backoff and per-call contextvars.
 
@@ -42,6 +49,7 @@ heuristics and reuses the vendored ``_is_non_retriable_bad_request`` list.
 
 from typing import Any
 
+import litellm
 from litellm.exceptions import (
     APIConnectionError,
     BadRequestError,
@@ -53,9 +61,9 @@ from litellm.exceptions import (
 )
 from loguru import logger
 
-from runner import atoll_fixes
+from runner import atoll_fixes, model_config
 from runner.utils import llm as _vendored
-from runner.utils.decorators import with_retry
+from runner.utils.decorators import task_id_ctx, with_retry
 from runner.utils.llm import (
     _drop_unrequested_encrypted_reasoning,
     _is_context_window_error,
@@ -68,6 +76,11 @@ from runner.utils.llm import (
     is_responses_api_model,
     reasoning_replay_items,
 )
+from runner.utils.settings import get_settings
+
+# The vendored module turns this global on when an endpoint is configured; Atoll
+# routes per call instead (settings.apply_llm_target), so direct models can bypass it.
+litellm.use_litellm_proxy = False
 
 __all__ = [
     "asks_for_encrypted_reasoning",
@@ -85,6 +98,35 @@ __all__ = [
     "_model_rates",
     "_should_skip_retry",
 ]
+
+
+def _with_endpoint_headers(
+    extra_args: dict[str, Any], model: str, trajectory_id: str | None
+) -> dict[str, Any]:
+    """Spend-tag headers for calls routed to the configured endpoint
+    (``LITELLM_BASE_URL``); none on direct calls. ``x-atoll-task`` /
+    ``x-atoll-trajectory`` — a LiteLLM proxy can harvest them
+    (``litellm_settings.extra_spend_tag_headers``). Caller-set headers win.
+    """
+    if not get_settings().routes_via_endpoint(model):
+        return extra_args
+    headers = {}
+    if task_id := task_id_ctx.get():
+        headers["x-atoll-task"] = task_id
+    if trajectory_id:
+        headers["x-atoll-trajectory"] = trajectory_id
+    if not headers:
+        return extra_args
+    return {**extra_args, "extra_headers": {**headers, **(extra_args.get("extra_headers") or {})}}
+
+
+def _direct_model_settings(
+    model: str, extra_args: dict[str, Any] | None
+) -> tuple[str, dict[str, Any]]:
+    """Per-model settings from model_config.yaml (whole entry on direct calls,
+    extra_headers only on endpoint calls)."""
+    direct = not get_settings().routes_via_endpoint(model)
+    return model_config.resolve(model, dict(extra_args or {}), direct=direct)
 
 
 async def generate_response(
@@ -107,8 +149,10 @@ async def generate_response(
     thinking models (request shaping + empty-thinking-reply retries). Disable
     per call with ``extra_args={"atoll_fixes": false}``.
     """
+    model, extra_args = _direct_model_settings(model, extra_args)
     enabled = atoll_fixes.fixes_enabled(extra_args)
     eff_args = atoll_fixes.strip_fixes_key(dict(extra_args or {}))
+    eff_args = _with_endpoint_headers(eff_args, model, trajectory_id)
     if enabled:
         llm_response_timeout, eff_args = atoll_fixes.shape_request(
             model, llm_response_timeout, eff_args
@@ -160,12 +204,13 @@ async def call_responses_api(
     **kwargs: Any,
 ) -> Any:
     """Vendored ``call_responses_api`` with Atoll's optional-argument contract."""
+    model, extra_args = _direct_model_settings(model, extra_args)
     return await _vendored.call_responses_api(
         model,
         messages,
         tools or [],
         llm_response_timeout,
-        dict(extra_args or {}),
+        _with_endpoint_headers(dict(extra_args or {}), model, trajectory_id),
         trajectory_id=trajectory_id,
         keep_encrypted_reasoning=keep_encrypted_reasoning,
         **kwargs,

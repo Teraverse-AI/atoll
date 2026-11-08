@@ -21,6 +21,11 @@ ToolFn = Callable[..., Any]
 
 SERVERS: dict[str, dict[str, ToolFn]] = {}
 
+# Atoll's opt-in office tools (LibreOffice-backed; see atoll_tools.office), kept OUT of
+# SERVERS so a mounted server shows exactly its ported Archipelago tool list. They join
+# their server's tools only when a run turns office tools on (default off).
+OPTIN: dict[str, dict[str, ToolFn]] = {}
+
 
 def register(server: str) -> Callable[[ToolFn], ToolFn]:
     """Register a tool function under a server (tool family) name.
@@ -32,6 +37,23 @@ def register(server: str) -> Callable[[ToolFn], ToolFn]:
     def decorator(fn: ToolFn) -> ToolFn:
         family = SERVERS.setdefault(server, {})
         if fn.__name__ in family:
+            raise ValueError(f"Duplicate tool name in {server}: {fn.__name__}")
+        family[fn.__name__] = fn
+        return fn
+
+    return decorator
+
+
+def register_optin(server: str) -> Callable[[ToolFn], ToolFn]:
+    """Register an opt-in (non-Archipelago) tool under a server; mounted only on request.
+
+    Same contract as :func:`register`. The tool lives in its server's package but is
+    exposed only when :func:`load_tools` is called with ``office_tools=True``.
+    """
+
+    def decorator(fn: ToolFn) -> ToolFn:
+        family = OPTIN.setdefault(server, {})
+        if fn.__name__ in family or fn.__name__ in SERVERS.get(server, {}):
             raise ValueError(f"Duplicate tool name in {server}: {fn.__name__}")
         family[fn.__name__] = fn
         return fn
@@ -53,12 +75,14 @@ def _import_tool_modules() -> None:
     import sheets_server  # noqa: F401
 
 
-def load_tools(servers: list[str] | None = None) -> dict[str, ToolFn]:
+def load_tools(servers: list[str] | None = None, *, office_tools: bool = False) -> dict[str, ToolFn]:
     """The flat registry for a run, FastMCP-named: prefixed iff several servers mount.
 
     Args:
         servers: Server names to mount (like the keys of an Archipelago
             mcp_config); None mounts every built-in server.
+        office_tools: Also mount the opt-in office tools of the mounted servers
+            (default off: the model sees exactly Archipelago's tool surface).
     """
     _import_tool_modules()
     selected = sorted(SERVERS) if servers is None else list(servers)
@@ -68,7 +92,10 @@ def load_tools(servers: list[str] | None = None) -> dict[str, ToolFn]:
     prefix = len(selected) > 1
     flat: dict[str, ToolFn] = {}
     for server in selected:
-        for name, fn in SERVERS[server].items():
+        tools = dict(SERVERS[server])
+        if office_tools:
+            tools.update(OPTIN.get(server, {}))
+        for name, fn in tools.items():
             flat[f"{server}_{name}" if prefix else name] = fn
     return flat
 

@@ -70,6 +70,24 @@ runner/providers/ToolProvider          ◄── the ONLY tool interface the loo
 trajectory.jsonl + result.json + snapshots
 ```
 
+## System prompt
+
+Default: `runner/system_prompts/atoll_agents.md` — Atoll's own, editable; it started
+as a copy of Mercor's APEX-Agents prompt, kept verbatim beside it as a reference
+(`apex_agents.md`; see that folder's README for provenance).
+Overrides, per-task first: task.toml `[atoll] system_prompt_file` (relative to the
+task dir) > `--system-prompt-file` > `$ATOLL_SYSTEM_PROMPT_FILE` > default. The CLI
+prints which one a run used; the trajectory's first message records the text.
+
+## Office tools (opt-in)
+
+Atoll's LibreOffice-backed tools (`recalculate_spreadsheet`, `convert_document_to_pdf`;
+see [native_tools](../native_tools/README.en.md#highlight-the-libreoffice-office-layer))
+are **off by default**, so a run's tool surface is Archipelago's. Turn them on with
+`--office-tools on` > task.toml `[atoll] office_tools = true` > `$ATOLL_OFFICE_TOOLS` >
+off (CLI wins, like the stop conditions). The CLI prints the setting; a run with them on
+is not directly comparable with an Archipelago run.
+
 ## Stop conditions
 
 Config keys live in `task.toml`'s `[agent]` table (upstream's exact names;
@@ -127,7 +145,7 @@ run workspace and replaced by a notice carrying its `/`-rooted path
 ## Running
 
 ```bash
-uv run atoll-run --task examples/q001_adjusting_entry --model gpt-4o-mini
+uv run atoll-run --task <task-dir> --model <model>
 ```
 
 ## trajectory.jsonl format

@@ -12,8 +12,9 @@ under the hood:
   container; Atoll runs it in a short-lived ``--network none`` Docker
   container (python:3.12-slim) via ContainerSandbox.run_shell. Model code NEVER
   runs on the host.
-- The working directory is the task workspace mounted at /workspace; the
-  description's "/filesystem" wording is kept verbatim from upstream.
+- The working directory is the task workspace mounted at /filesystem — upstream's
+  APP_FS_ROOT default — so the description's "/filesystem" and absolute paths a
+  model derives from it (e.g. from Mercor's system prompt) resolve as upstream.
 - python:3.12-slim provides sh and python3 only — no node or other runtimes an
   upstream deployment may have carried — and the container has no network, so the
   description's `pip install` example will fail at download time.

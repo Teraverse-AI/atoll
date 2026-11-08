@@ -1,0 +1,28 @@
+# Per-model request settings — optional. Copy to model_config.yaml (beside this file)
+# and edit; without it every model passes through unchanged. In containers, rebuild the
+# runner image after editing (scripts/build_runner_image.sh).
+#
+# Entries are matched by the exact name passed as --model, like a proxy's model_list:
+#   direct calls (no LITELLM_BASE_URL, or a model in ATOLL_DIRECT_MODELS) get the
+#     whole entry: model (the provider's model id), api_key / api_base, extra_headers
+#     and any other request settings; settings the caller passes win.
+#   endpoint calls get only extra_headers — the endpoint resolves the model itself.
+# "os.environ/NAME" reads that environment variable at call time; when it is unset the
+# setting is skipped (a skipped api_key also skips api_base), so the provider's
+# defaults apply.
+
+model_list:
+  # A short name for a provider model, with its own key, base URL and request body.
+  - model_name: my-model
+    litellm_params:
+      model: openai/my-provider-model-id
+      api_key: os.environ/MY_PROVIDER_API_KEY
+      api_base: https://api.my-provider.example/v1
+      extra_body:
+        reasoning_effort: high
+
+  # A header your endpoint expects with this model (sent on endpoint calls too).
+  - model_name: my-endpoint-alias
+    litellm_params:
+      extra_headers:
+        x-my-header: os.environ/MY_HEADER_VALUE

@@ -17,14 +17,15 @@ RUN pip install --no-cache-dir -r /opt/atoll/requirements.txt
 
 COPY sandbox_server.py /opt/atoll/sandbox_server.py
 
-# Unprivileged user; /workspace and /channel exist (owned by it) so fresh named
+# Unprivileged user. /filesystem is the workspace (Archipelago's APP_FS_ROOT, the cwd
+# its code tools run in); it and /channel exist (owned by the user) so fresh named
 # volumes mounted there inherit that ownership.
 RUN useradd --uid 1000 --create-home --home-dir /home/atoll atoll \
-    && mkdir -p /workspace /channel \
-    && chown atoll:atoll /workspace /channel
+    && mkdir -p /filesystem /channel \
+    && chown atoll:atoll /filesystem /channel
 USER 1000:1000
 # Writable scratch lives on the /tmp tmpfs (the root filesystem is read-only at runtime).
 ENV HOME=/tmp MPLCONFIGDIR=/tmp PYTHONDONTWRITEBYTECODE=1
 
-WORKDIR /workspace
+WORKDIR /filesystem
 CMD ["python", "-I", "/opt/atoll/sandbox_server.py"]

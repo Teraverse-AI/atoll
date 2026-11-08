@@ -11,7 +11,7 @@ tighter query to make.
 Spilling writes those bytes to the run's workspace instead and hands the model
 a path. Upstream uploads a tar.gz to the sandbox's ``/filesystem/`` over HTTP;
 in Atoll the per-run workspace IS that filesystem — it is shared with the
-code-execution container (mounted at ``/workspace``) and presented to the
+code-execution container (mounted at ``/filesystem``) and presented to the
 filesystem tools as ``'/'`` — so the upload is replaced with a direct local
 write and the returned path is the ``'/'``-rooted virtual path the model can
 pass to ``read_text_file`` or open from ``python_code_execution``.

@@ -13,6 +13,12 @@ exposed here. Atoll's only routing knobs are two environment variables:
 * when unset, ``apply_llm_target`` leaves kwargs untouched and litellm routes
   DIRECT to the provider (provider-prefixed model names + provider API keys
   from the environment, e.g. ``GEMINI_API_KEY``).
+* ``ATOLL_DIRECT_MODELS`` — comma-separated model-name prefixes (like
+  ``NO_PROXY``) that go DIRECT even when ``LITELLM_BASE_URL`` is set.
+
+Endpoint calls are marked per call (``litellm_proxy/<model>``, as upstream's
+gateway branch does), never via the ``litellm.use_litellm_proxy`` global, which
+would also capture the direct ones.
 
 Gateway routing does not exist in Atoll: ``is_gateway_routed()`` is always
 False, so the vendored gateway branches are vendored-but-disabled, never
@@ -71,6 +77,15 @@ class Settings:
         del workload
         return 3
 
+    def routes_via_endpoint(self, model: str) -> bool:
+        """Whether a call for ``model`` goes to the configured endpoint (else direct)."""
+        if model.startswith("litellm_proxy/"):
+            return True
+        if not self.LITELLM_PROXY_API_BASE:
+            return False
+        direct = [p.strip() for p in os.environ.get("ATOLL_DIRECT_MODELS", "").split(",") if p.strip()]
+        return not any(model.startswith(p) for p in direct)
+
     def apply_llm_target(
         self,
         kwargs: dict[str, Any],
@@ -79,17 +94,19 @@ class Settings:
         workload: str | None = None,
         priority: int | None = None,
     ) -> None:
-        """Set api_base / api_key on ``kwargs`` from the environment, or leave
-        them untouched so litellm routes direct to the provider.
+        """Route one call: to the endpoint (``litellm_proxy/<model>``, api_base /
+        api_key from the environment) or direct to the provider.
 
         Mirrors upstream's LiteLLM-proxy branch (``setdefault``, and the call
         timeout forwarded via ``extra_body`` so the proxy sees it while the
         client waits a little longer). The gateway branch does not exist here.
         """
         del campaign_id, workload, priority
+        model = kwargs.get("model", "")
+        if not self.routes_via_endpoint(model):
+            return  # direct: provider defaults, or what runner/model_config.yaml set
+        kwargs["model"] = f"litellm_proxy/{model.removeprefix('litellm_proxy/')}"
         base = self.LITELLM_PROXY_API_BASE
-        if not base:
-            return
         kwargs.setdefault("api_base", base)
         key = self.LITELLM_PROXY_API_KEY
         if key:

@@ -49,7 +49,7 @@ def writable(p):
     except OSError:
         return False
 r["root_writable"] = writable("/usr/probe")
-r["workspace_writable"] = writable("/workspace/.probe")
+r["workspace_writable"] = writable("/filesystem/.probe")
 print(json.dumps(r))
 """
 
@@ -174,7 +174,7 @@ def main() -> int:
         check("sandbox: no network (IP)", rep["net_ip"] != "connected", rep["net_ip"])
         check("sandbox: no network (DNS/host)", rep["net_dns"] != "connected", rep["net_dns"])
         check("sandbox: sees only its own workspace",
-              rep["markers"] == [f"/workspace/marker_{eval_id}.txt"], rep["markers"])
+              rep["markers"] == [f"/filesystem/marker_{eval_id}.txt"], rep["markers"])
         check("sandbox: no task bundle / gold answer",
               not rep["task_visible"] and not rep["gold"], rep["gold"])
         check("sandbox: runner credentials not visible",

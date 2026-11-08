@@ -6,6 +6,25 @@
 
 模型观察到的工具名遵循 FastMCP 网关规则，与 Archipelago 完全一致：只挂载一个服务器时为 `{tool_name}`；挂载多个时为 `{server_name}_{tool_name}`（如 `sheets_server_read_tab`）。可用 `load_tools(["filesystem_server", "sheets_server"])` 挂载子集，或在 `task.toml` 中按任务配置 `servers = [...]`；`load_default_tools()` 挂载全部已实现的服务器。
 
+## 亮点：LibreOffice 办公组件层
+
+Archipelago 自带 LibreOffice（其环境镜像安装 `libreoffice-calc`/`libreoffice-core`，评分器另带一份），并在两处调用 `soffice`：`sheets_server` 的 `read_tab` 用它重算公式单元格，评分器用它在评审前重算工作簿。Atoll 在 `atoll-runner` 镜像中安装同样的组件，两处上游调用**逐字保留**——`read_tab` 的公式重算与上游行为一致。
+
+在此之上，`core/atoll_tools/office.py` 是 Atoll 自己驱动 LibreOffice 的唯一入口，供下面的可选工具和评分器共用：
+
+- **强制全量重算**：LibreOffice 打开 `.xlsx` 时默认沿用文件里缓存的值；用 xlsxwriter 等库写出的工作簿给每个公式缓存 0 并设置 `fullCalcOnLoad`（让 Excel 打开时重算），直接转换会得到一片 0。每次调用都使用一次性的配置目录，把 `OOXMLRecalcMode`/`ODFRecalcMode` 设为“总是重算”——得到的就是用户在 Excel 中打开时看到的值。
+- **失败即报错**（`OfficeError`），从不静默退回缓存值；每次调用独立配置目录，带超时。
+- `needs_recalculation(path)`：存在无缓存值的公式，或文件要求打开时重算，即需重算。
+
+### 可选办公工具（opt-in，默认关闭）
+
+| 服务器 | 工具 | 说明 |
+| --- | --- | --- |
+| `sheets_server` | `recalculate_spreadsheet` | 用 LibreOffice 全量重算 `.xlsx` 并把计算结果写回文件（相当于在电子表格软件中打开并保存），列出结果为错误值的公式单元格。 |
+| `docs_server` | `convert_document_to_pdf` | 用 LibreOffice 把 `.docx` 转为 PDF，例如检查打印时的分页与版式。 |
+
+这些工具放在各自服务器的包内（今后 `presentations/` 同理），但通过 `@register_optin` 登记在已移植工具表之外：**默认挂载的工具表面与 Archipelago 完全一致**，`published_schemas.json` 的一致性测试不受影响。开关的优先级与 `max_steps` 相同：`atoll-run --office-tools on|off` > `task.toml` 的 `[atoll] office_tools` > `$ATOLL_OFFICE_TOOLS` > 关闭。打开后，模型能看到 Archipelago 没有的工具，**该次运行的分数不再能与 Archipelago 直接比较**。
+
 ## 模块索引
 
 ✅ = 已完整移植（含测试） · 📄 = 仅 README 占位（尚未移植）
@@ -92,7 +111,8 @@
 
 ## 核心组件（`core/` → 包 `atoll_tools`）
 
-- `registry.py` — `@register("<server>")`；`load_tools([...])` 应用网关命名规则。
+- `registry.py` — `@register("<server>")`；`load_tools([...])` 应用网关命名规则。`@register_optin("<server>")` 登记可选办公工具，仅在 `load_tools(..., office_tools=True)` 时加入该服务器。
+- `office.py` — Atoll 的 LibreOffice 层（见上文“亮点”）：`recalculate`、`convert`、`needs_recalculation`、`find_soffice`（`$ATOLL_SOFFICE` 可指定路径）。
 - `tool_schema.py` — 已移植工具**逐字输出其 vendored 的已发布 schema**（见 `published.py`）；签名内省（`Annotated[T, Field(description=...)]` 或 Google 风格 `Args:`）仅作为新工具的后备。
 - `published.py` — 每个已移植服务器携带一份 `published_schemas.json`：即 Archipelago 网关在上游 pin 定提交处 `tools/list` 实际返回的 JSON（按各服务器锁定的 fastmcp 版本抓取——上游会对 schema 做 `flatten_schema`、`(Optional)`/nullable 标注，documents 还做 union 合并；若干工具以单个嵌套 `input` 对象发布）。同时移植了上游的 EnvelopeCompatMiddleware：对 `input` 封装工具的扁平参数调用会在执行前被包装。
 - `context.py` — 每次运行的工作区根目录；所有路径都在其内解析，越界访问被拒绝。

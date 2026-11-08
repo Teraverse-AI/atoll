@@ -1,17 +1,45 @@
-"""End-to-end smoke: run the real atoll-run CLI path on q001 with a scripted LLM.
+"""End-to-end smoke: run the real atoll-run CLI path with a scripted LLM.
 
-Exercises the ported parity tools for real: filesystem list, PDF read (PyMuPDF),
+Builds a small task in a temp dir (an insurance invoice PDF and a ledger workbook),
+then exercises the ported parity tools for real: filesystem list, PDF read (PyMuPDF),
 sheet read (openpyxl), and a genuine sandboxed container write via
 python_code_execution — then verifies every artifact.
+
+    uv run python scripts/e2e_smoke.py <out-dir>      (needs the atoll-sandbox image)
 """
 
 import json
 import sys
 import tarfile
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
+import openpyxl
 import runner.llm
+from reportlab.pdfgen import canvas
+
+
+def _make_task(root: Path) -> Path:
+    """A minimal task bundle: task.toml + instruction.md + workspace/{invoice.pdf, ledger.xlsx}."""
+    task = root / "smoke_task"
+    ws = task / "workspace"
+    ws.mkdir(parents=True)
+    (task / "task.toml").write_text(
+        '[metadata]\nid = "smoke_task"\n\n[agent]\nmax_steps = 25\ntoken_budget = 128000\n')
+    (task / "instruction.md").write_text(
+        "Record the year-end adjusting entry for the prepaid insurance in adjusting_entry.json.\n")
+    pdf = canvas.Canvas(str(ws / "invoice.pdf"))
+    pdf.drawString(72, 750, "Insurance invoice - 12-month policy from 2025-10-01")
+    pdf.drawString(72, 730, "Premium: 3,600.00")
+    pdf.save()
+    wb = openpyxl.Workbook()
+    sheet = wb.active
+    sheet.append(["Account", "Debit", "Credit"])
+    sheet.append(["Prepaid Insurance", 3600.0, 0.0])
+    sheet.append(["Cash", 0.0, 3600.0])
+    wb.save(ws / "ledger.xlsx")
+    return task
 
 
 def _response(content=None, tool_calls=None):
@@ -79,7 +107,8 @@ def fake_generate_response(model, messages, tools, llm_response_timeout, extra_a
 runner.llm.generate_response = fake_generate_response
 
 out_dir = Path(sys.argv[1])
-sys.argv = ["atoll-run", "--task", "examples/q001_adjusting_entry", "--model", "mock-model",
+task_dir = _make_task(Path(tempfile.mkdtemp(prefix="atoll-smoke-")))
+sys.argv = ["atoll-run", "--task", str(task_dir), "--model", "mock-model",
             "--output", str(out_dir)]
 from runner.main import main  # noqa: E402 (must import after the llm patch)
 
@@ -108,7 +137,7 @@ assert "'invoice.pdf'" in ls_obs and "'ledger.xlsx'" in ls_obs, ls_obs[:200]
 
 pdf_obs = tool_msgs[1]["content"]
 assert "3,600.00" in pdf_obs, pdf_obs[:400]
-assert "2025-10-01" in pdf_obs
+assert "2025-10-01" in pdf_obs, pdf_obs[:400]
 
 tab_obs = tool_msgs[2]["content"]
 assert "Prepaid Insurance" in tab_obs, tab_obs[:400]

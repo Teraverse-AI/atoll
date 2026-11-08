@@ -5,7 +5,9 @@ description = "Native Python tool functions for Atoll (replaces Archipelago's mc
 requires-python = ">=3.12"
 dependencies = [
     "openpyxl>=3.1",
-    "pymupdf>=1.24",
+    # Upstream's locked version (archipelago mcp_servers/pdfs/uv.lock at the pinned commit).
+    # PyMuPDF 2.x adds onnxruntime, whose built-in telemetry phones home on import.
+    "pymupdf==1.26.7",
     "python-docx>=1.1.2",
     "pydantic>=2.7",
     "reportlab>=4.0",

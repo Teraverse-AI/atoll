@@ -163,3 +163,13 @@ def test_workspace_files_visible_and_writable(workspace):
     assert result.success is True, result.output
     assert result.output.strip() == "42"
     assert (workspace / "out.txt").read_text() == "42"
+
+
+@pytest.mark.skipif(not has_runtime, reason="no working sandbox (runtime or atoll-sandbox image missing)")
+def test_runs_in_filesystem_root_like_upstream(workspace):
+    """Upstream's APP_FS_ROOT: cwd is /filesystem and absolute /filesystem/ paths work
+    (the tool description and Mercor's system prompt both tell the model so)."""
+    (workspace / "ledger.txt").write_text("7")
+    result = code_exec(code="pwd && cat /filesystem/ledger.txt")
+    assert result.success is True, result.output
+    assert result.output.split() == ["/filesystem", "7"]

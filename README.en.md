@@ -13,7 +13,7 @@
 
 1. **Environment**: Workspace lifecycle (populate, snapshot) — a plain Python library, no gateway process
 2. **Agents**: Extensible agent runner with a registry of configurable agent implementations
-3. **Grading**: Grades agent performance by comparing before/after snapshots *(deferred — see [grading/README.md](./grading/README.md))*
+3. **Grading**: Grades the files the agent added or changed (the before/after snapshot diff) item by item against the rubric and the reference answers, with a weighted score — see [grading/README.en.md](./grading/README.en.md)
 
 **Design philosophy — comparability through reuse, not reimplementation.** A model inside a run cannot tell Atoll from Archipelago, and scores are directly comparable, because everything the model can observe is Mercor's own, not an imitation:
 
@@ -67,6 +67,10 @@ cp .env.example .env
 # Direct mode — leave LITELLM_BASE_URL empty and set provider keys instead
 #   (OPENAI_API_KEY=..., GEMINI_API_KEY=..., VOLCENGINE_API_KEY=..., ...);
 #   model names are then litellm provider-prefixed, e.g. "gemini/gemini-2.5-pro".
+# Both — proxy mode plus ATOLL_DIRECT_MODELS=volcengine/ (comma-separated model-name
+#   prefixes, like NO_PROXY) sends those models direct; with the network off, list both
+#   hosts in ATOLL_EGRESS_ALLOW. Direct calls take per-model request settings (provider
+#   model id, thinking / reasoning effort) from agents/runner/model_config.yaml.
 ```
 
 ### 2. Build the code-execution sandbox image (one-time)
@@ -77,11 +81,14 @@ scripts/build_sandbox_image.sh
 #   (numpy, pandas, scipy, statsmodels, sympy, …) as Archipelago's code server
 ```
 
-### 3. Run an Example
+### 3. Run a Task
 
 ```bash
-uv run atoll-run --task examples/q001_adjusting_entry --model gpt-4o-mini
+uv run atoll-run --task <task-dir> --model <model>
 ```
+
+`<task-dir>` is your own task, in either layout described under
+[Task layouts](#task-layouts); `<model>` is any model your endpoint or provider serves.
 
 The runner will:
 1. Copy the task's workspace template into a fresh run directory
@@ -93,7 +100,7 @@ The runner will:
 ### 4. Check Results
 
 ```bash
-RUN=$(ls -td runs/q001_adjusting_entry/* | head -1)
+RUN=$(ls -td runs/<task-id>/* | head -1)
 cat $RUN/result.json | jq .status
 cat $RUN/trajectory.jsonl | tail -1 | jq .
 ls $RUN   # workspace/ initial_snapshot.tar.gz final_snapshot.tar.gz trajectory.jsonl result.json
@@ -114,7 +121,7 @@ The Environment is a plain Python library (`atoll_env`) plus a thin CLI — Arch
 | `POST /apps` (hot-swap MCP config) | `load_tools([...])` — pick which tool servers a run mounts |
 | MCP gateway process | — (tools are in-process functions) |
 
-`atoll_env.sandbox.ContainerSandbox` is the **required** container sandbox for model-written code: Docker Desktop; `--network none`, memory-capped, only the workspace mounted. There is no unsandboxed fallback. For containerized evals (only Docker needed on the machine, no Python install), each eval runs as an isolated runner + sandbox container pair (runner network **off** by default: only the LLM endpoint is reachable) that you can launch from your own pipeline — a UI, a server, CI, or anything else; see [Containerized evals](./environment/README.md#containerized-evals).
+`atoll_env.sandbox.ContainerSandbox` is the **required** container sandbox for model-written code: Docker Desktop; `--network none`, memory-capped, only the workspace mounted — at `/filesystem`, Archipelago's code-execution root. There is no unsandboxed fallback. For containerized evals (only Docker needed on the machine, no Python install), each eval runs as an isolated runner + sandbox container pair (runner network **off** by default: only the LLM endpoint is reachable) that you can launch from your own pipeline — a UI, a server, CI, or anything else; see [Containerized evals](./environment/README.md#containerized-evals).
 
 > For more details, see the [Environment README](./environment/README.md).
 
@@ -124,7 +131,7 @@ The Environment is a plain Python library (`atoll_env`) plus a thin CLI — Arch
 
 ```
 native_tools/
-├── core/              # atoll_tools package: registry, schema generation, workspace context
+├── core/              # atoll_tools package: registry, schema generation, workspace context, LibreOffice layer (office.py)
 ├── filesystem/        # ✅ filesystem_server — 6 tools
 ├── spreadsheets/      # ✅ sheets_server — all 12 tools incl. edit_spreadsheet, filter_tab
 ├── pdfs/              # ✅ pdf_server — 5 tools (PyMuPDF + reportlab)
@@ -136,6 +143,8 @@ native_tools/
 ```
 
 Tool names observed by the model follow FastMCP's gateway rule, exactly like Archipelago: with several servers mounted, tools appear as `{server_name}_{tool_name}` (e.g. `filesystem_server_list_files`). Each ported server also vendors the exact `tools/list` JSON Archipelago's gateway served at the pinned upstream commit (`published_schemas.json`) and serves it verbatim, so parameter schemas — including upstream's flattening, `(Optional)`/nullable annotations, and nested `input` envelopes — are byte-identical; parity is pinned by tests.
+
+**Highlight: the LibreOffice office layer.** Archipelago ships LibreOffice; sheets_server's `read_tab` and the grader both recalculate formulas with it. Atoll installs the same components in the `atoll-runner` image and keeps the upstream call sites verbatim, so `read_tab` behaves as upstream does. On top, `core/atoll_tools/office.py` provides **forced full recalculation** (LibreOffice keeps a file's cached values by default, so placeholder caches come back as zeros) and conversions that fail loudly, shared by the grader and the opt-in office tools. The opt-in tools (`recalculate_spreadsheet` in sheets_server, `convert_document_to_pdf` in docs_server) are **off by default** — turn them on with `--office-tools on`, task.toml `[atoll] office_tools` or `$ATOLL_OFFICE_TOOLS`; off, the model-visible tool surface is identical to Archipelago's ([details](./native_tools/README.en.md#highlight-the-libreoffice-office-layer)).
 
 > For the full tool-parity matrix and the list of Archipelago servers not (yet) ported, see the [Native Tools README](./native_tools/README.en.md).
 
@@ -162,13 +171,13 @@ The Agents component mirrors Archipelago's `agents/runner/`. The core loop (`age
 
 `loop.py` depends only on the `ToolProvider` interface — swapping `NativeToolProvider` for a future `McpToolProvider` pointed at a real Archipelago gateway requires no loop changes.
 
-**Stop conditions** — Atoll harness defaults, overridable per task in `task.toml` or via CLI/env: `max_steps=250`, `timeout=3600s`, token budget off (when set, budget exhaustion grants one final warned turn). The ported loop itself keeps upstream's internal defaults (`100`/`10800s`/off) for library use; the example tasks in `examples/` set their own values in `task.toml`.
+**Stop conditions** — Atoll harness defaults, overridable per task in `task.toml` or via CLI/env: `max_steps=250`, `timeout=3600s`, token budget off (when set, budget exhaustion grants one final warned turn). The ported loop itself keeps upstream's internal defaults (`100`/`10800s`/off) for library use.
 
 > For more details, see the [Agents README](./agents/README.md).
 
 ### Grading
 
-Deferred. The contract it will consume already exists (initial/final snapshots, `trajectory.jsonl`, `gold_answer.json`, `[[atoll.verifiers]]` in `task.toml`); see [grading/README.md](./grading/README.md).
+`atoll-grade --task <task-dir> --run <run-dir> --judge-model <model>` (in containers: `scripts/run_grade.sh` — rendering with no network, judging with only the judge endpoint reachable). A per-rubric-item LLM judge (model of your choice) over the files the agent added or changed, one weighted score per run, and per-model mean scores; files are rendered by Archipelago's own extractor (vendored byte-identical). Unlike Archipelago's judge, Atoll's sees the tasks' expert-prepared reference (golden) outputs, and judges spreadsheets as a user would see them: every workbook is force-recalculated locally with LibreOffice before rendering (a failed recalculation aborts grading), and sheets over 500 rows come with a program-computed summary of all their rows. Details: [grading/README.en.md](./grading/README.en.md).
 
 ---
 
@@ -183,6 +192,9 @@ Deferred. The contract it will consume already exists (initial/final snapshots, 
 | Network | the [APEX-Agents paper](https://arxiv.org/abs/2601.14242) states: *"Web search is turned off for the benchmark to keep evaluations reproducible"* (§3.1); we found no container-level egress restriction in the open-source repo | **not Mercor's mechanism** — Atoll reads "no web search" as "no outside information" (open network access would let an agent fetch whatever it can reach), so containerized evals have a `network` setting (like `max_steps`), default **off**: the runner reaches only the allow-listed LLM endpoint via a per-eval egress proxy; the code sandbox never has a network ([details](./environment/README.md#network-setting)) |
 | Task format | Harbor bundles (`task.toml`, `instruction.md`, snapshots) | same layout |
 | Agent loop | `loop_truncated_tools_agent` | faithful port: trimming, budgets, spill, byte-identical templates (see NOTICE) |
+| System prompt | one prompt for all tasks and models (APEX-Agents paper, App. D.2), kept in docs; the caller puts it into the initial messages | one default too: `atoll_agents.md` (a draft built on Mercor's text, which is kept verbatim beside it as `apex_agents.md`) in [`agents/runner/system_prompts/`](./agents/runner/system_prompts/); override globally or per task (per task wins) |
+| Grading | per-criterion LLM judge (`output_llm`, Gemini 3 Flash, thinking low), criteria + changed files (local extractor, or the remote parsing service Reducto); reports the unweighted % of criteria passed and Pass@1 | per-item LLM judge (model of your choice); **also sees the reference (golden) outputs**; the same local extractor (vendored byte-identical), but workbooks are **force-recalculated by LibreOffice** and grading aborts if that fails, no remote parsing; one **weighted** % score, no deterministic checks — [details](./grading/README.en.md#how-this-differs-from-mercors-grading) |
+| Office (LibreOffice) | environment image ships `libreoffice-calc`/`libreoffice-core` (`read_tab` recalculation); the grader stages its own copy | `atoll-runner` installs the same components, upstream call sites verbatim; plus `atoll_tools.office` (forced full recalculation) and opt-in office tools, off by default ([details](./native_tools/README.en.md#highlight-the-libreoffice-office-layer)) |
 | LLM client layer | `runner/utils/llm.py`: provider request surgery, retries, cache breakpoints | the same files, vendored byte-identical at a pinned commit; server infra disabled via shims (`agents/runner/utils/PATCHES.md`) |
 | Model routing | direct-to-provider or via their proxy | identical: proxy or direct, same surgery either way |
 | Retry ownership | harness client owns retries; proxy pass-through | same (gateway deployments for Atoll should pin retries to 0) |
@@ -197,10 +209,21 @@ Deferred. The contract it will consume already exists (initial/final snapshots, 
 uv sync                                    # install the uv workspace (3 packages)
 uv run pytest                              # run the test suite
 uv run ruff check .                        # lint
-uv run python scripts/generate_task_workspaces.py   # regenerate task fixtures (xlsx/pdf)
 ```
 
-Example tasks live in `examples/` as Harbor-style bundles (`task.toml` + `instruction.md` + `workspace/` + `gold_answer.json`) — a small sample, not the full task set; see [examples/README.md](./examples/README.md).
+### Task layouts
+
+A **bundle** (Harbor-style): `task.toml` (metadata, `[agent]` stop conditions, `[atoll]`
+settings) + `instruction.md` (the user message) + `workspace/` (the agent's starting
+files), and for grading `rubrics.json` + `reference/` (reference outputs, judge-only).
+
+`atoll-run` and `scripts/run_eval.sh` also take a **delivery task**: `prompt.md` (the user
+message — never a file the agent sees), `filesystem/` (mounted at `/filesystem`),
+`reference/` (`rubrics.json` + `outputs/`, judge-only, never mounted), optional
+`system_prompt.md` and `task.toml`. Its runs go to `results/<model>/run_<n>/` (`<model>` = the
+alias's last segment, or `--model-name` — e.g. to file a provider's full model ID under a shorter
+name; `n` = the next free number unless `--out`/`--output` names the dir), with
+`agent_outputs/` — the files the agent added or changed — in place of `workspace/`.
 
 Containerized evals: `scripts/build_runner_image.sh` + `scripts/build_sandbox_image.sh`, then `scripts/run_eval.sh` (one isolated container pair per eval; see the [Environment README](./environment/README.md#containerized-evals)).
 

@@ -44,3 +44,6 @@ from docs_server import (  # noqa: F401
 )
 
 _attach(_Path(__file__).with_name("published_schemas.json"), _SERVERS["docs_server"])
+
+# Atoll opt-in office tools (registered apart from the ported surface; see atoll_tools.office).
+from docs_server import office_tools as _office_tools  # noqa: E402, F401

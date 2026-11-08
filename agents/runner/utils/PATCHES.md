@@ -43,7 +43,7 @@ Notes on self-disabling vendored files:
 | Local path | Stands in for | Purpose |
 |---|---|---|
 | `runner/utils/metrics.py` | upstream Datadog metrics | no-op `distribution()` / `increment()` (upstream documents both as fire-and-forget, never-raising) |
-| `runner/utils/settings.py` | upstream server settings | `get_settings()` exposing exactly what the vendored code reads; `apply_llm_target` sets `api_base`/`api_key` from `LITELLM_BASE_URL`/`LITELLM_API_KEY` (upstream's proxy branch, incl. the extra_body timeout forward) and leaves kwargs untouched when unset so litellm routes direct to the provider; `is_gateway_routed()` is always False; exports `work_unit_ctx` |
+| `runner/utils/settings.py` | upstream server settings | `get_settings()` exposing exactly what the vendored code reads; `apply_llm_target` routes per call: endpoint calls get `litellm_proxy/<model>` (as upstream's gateway branch, `_gateway_wire_model`) plus `api_base`/`api_key` from `LITELLM_BASE_URL`/`LITELLM_API_KEY` (upstream's proxy branch, incl. the extra_body timeout forward); calls with no endpoint or matching `ATOLL_DIRECT_MODELS` go direct (per-model settings from `runner/model_config.yaml`, applied by the adapter); `routes_via_endpoint()`; the adapter (`runner/llm.py`) switches off the `litellm.use_litellm_proxy` global the vendored module sets at import; `is_gateway_routed()` is always False; exports `work_unit_ctx` |
 | `runner/utils/redis.py` | upstream Redis client | `redis_client = None` — the vendored guard already no-ops the budget meter on a None client |
 | `runner/utils/budget_meter.py` | upstream Redis spend guardrail | upstream signatures (`read_state`/`hydrate_if_stale`/`accrue`, `BATCH_LANES`, `LANE_*`, `BudgetExceededError`, `BudgetSnapshot`) reproducing exactly the upstream `client is None` behavior; not vendorable verbatim because upstream imports the `redis` package at module level |
 | `runner/utils/budget_hydration.py` | upstream meter-repair callback | async no-op `request_meter_hydration()` (never invoked: the meter shim never reports staleness) |
@@ -53,9 +53,8 @@ Notes on self-disabling vendored files:
 
 ## Reconciliation decisions
 
-* `context_budget.py` / `context_windows.py` / `usage.py`: Atoll's earlier
-  ported copies were replaced by the upstream originals, vendored verbatim —
-  the loop's imports (`DEFAULT_TRIM_FLOOR`, `PromptTokenProjector`,
+* `context_budget.py` / `context_windows.py` / `usage.py`: the upstream
+  originals, vendored verbatim — the loop's imports (`DEFAULT_TRIM_FLOOR`, `PromptTokenProjector`,
   `count_tokens`, `resolve_max_input_tokens`, `trim_to_budget`,
   `UsageTracker`) are signature-compatible, and `runner/utils/llm.py` needs
   `USAGE_IS_ESTIMATE_KEY`, which only the upstream original exports. The
@@ -95,3 +94,49 @@ Notes on self-disabling vendored files:
    reads new attributes (same-signature, disabled-state behavior only).
 4. Run the suite from the repo root: `uv run pytest -q`,
    `uv run ruff check .`, and the e2e smoke script.
+
+## Grader file extraction (vendored verbatim)
+
+Atoll's grader (`grading/atoll_grading`) renders files with upstream's own grader
+extraction layer, from archipelago's **`grading/`** project at the same pinned commit.
+Upstream agents and upstream grading both use the top-level package `runner`, so these
+files live at their upstream import paths inside Atoll's `runner` package — no import
+is rewritten. Their only cross-module import outside the layer, `runner.utils.decorators`
+(the four `*_ctx` ContextVars used by the inert document cache), is satisfied by the
+agents copy already vendored above. Reducto and Mercor's document cache are vendored
+too and stay inert: they activate only with their API keys set, which Atoll never sets.
+
+| Upstream path (in archipelago) | Local path (in atoll) | sha256 |
+|---|---|---|
+| `grading/runner/utils/tool_paths.py` | `agents/runner/utils/tool_paths.py` | `027c9567db2dcc5e6a5fc1a9378696b98c221b2b839847b987fa9f448c01e71b` |
+| `grading/runner/utils/file_extraction/__init__.py` | `agents/runner/utils/file_extraction/__init__.py` | `e337d759bef7539ae4d68626d49eba7cd79e668560abe72344d7b694f7b9e9e7` |
+| `grading/runner/utils/file_extraction/base.py` | `agents/runner/utils/file_extraction/base.py` | `01db3c08066287c6d6e8deeeef5ce6b679f4ea3db38932158e17fb93327f9ae0` |
+| `grading/runner/utils/file_extraction/constants.py` | `agents/runner/utils/file_extraction/constants.py` | `e7ede38b118cca4fb571970d3deec8307f5f35e6a23a9cc0f5295b47ae717009` |
+| `grading/runner/utils/file_extraction/types.py` | `agents/runner/utils/file_extraction/types.py` | `e61bd09de55ca4b476e62c8ff8161513f58f42fd1c1c37c253afb55eaa2f5f44` |
+| `grading/runner/utils/file_extraction/factory.py` | `agents/runner/utils/file_extraction/factory.py` | `ff82f159d774d57f36011e6dff7cd2a135d25a719c21665848e795873bafffec` |
+| `grading/runner/utils/file_extraction/methods/__init__.py` | `agents/runner/utils/file_extraction/methods/__init__.py` | `6637f42eadc415ac9c441208c5fb7ad8faf77195a6bfce56c51a90d68e1ec06a` |
+| `grading/runner/utils/file_extraction/methods/archive_extractor.py` | `agents/runner/utils/file_extraction/methods/archive_extractor.py` | `fe94a9f925150dc904db23c35779fbee1d17b35a8a9cd7c449267a4117d42f03` |
+| `grading/runner/utils/file_extraction/methods/local_extractor.py` | `agents/runner/utils/file_extraction/methods/local_extractor.py` | `5ce07d9d03b38dd3d6a2474e6246808a5d5529a95bd160fff53e6e2fd84b1bed` |
+| `grading/runner/utils/file_extraction/methods/mercor_document_cache.py` | `agents/runner/utils/file_extraction/methods/mercor_document_cache.py` | `1be382b3591305aeabb4abb5cca2a23a08bad994ec2a816ae7904260d7c38eab` |
+| `grading/runner/utils/file_extraction/methods/reducto_extractor.py` | `agents/runner/utils/file_extraction/methods/reducto_extractor.py` | `ba0437de4c73d065976870da2875110611df2d12ed91861b36dbb9267403d105` |
+| `grading/runner/utils/file_extraction/methods/reducto/__init__.py` | `agents/runner/utils/file_extraction/methods/reducto/__init__.py` | `7bdbfa4c414d3d22366b7f24211d1af0e00d2f3538cc192edf62c7f7e7664e84` |
+| `grading/runner/utils/file_extraction/methods/reducto/client.py` | `agents/runner/utils/file_extraction/methods/reducto/client.py` | `6234bb83e4ee186577330b9c4293c857d3ad9c9584b91400dc09f5d46f785d5f` |
+| `grading/runner/utils/file_extraction/methods/reducto/types.py` | `agents/runner/utils/file_extraction/methods/reducto/types.py` | `4e5d27aa246ff3efd7f0270fe8aadf367793cb9bccb45a35fca4cca5d1ec7ad3` |
+| `grading/runner/utils/file_extraction/utils/chart_extraction.py` | `agents/runner/utils/file_extraction/utils/chart_extraction.py` | `0be1966e2eccf90a82772913cc03cf278243f65b9e12ef2ceca9280d96a02424` |
+| `grading/runner/utils/file_extraction/utils/docx_tracked_changes.py` | `agents/runner/utils/file_extraction/utils/docx_tracked_changes.py` | `b796856ef30e11e31ca3a955da833741b7b538079c44d10c686671d10301bc9a` |
+| `grading/runner/utils/file_extraction/utils/pptx_speaker_notes.py` | `agents/runner/utils/file_extraction/utils/pptx_speaker_notes.py` | `54e1796e38d94c5658303a65fe8e148741e4a045b2ba12802c17189d747fdc47` |
+
+### Runtime patches (grading only; no vendored file is edited)
+
+`atoll_grading.render.apply_patches()` replaces three module attributes of
+`runner.utils.file_extraction.methods.local_extractor` when the grader is imported
+(nothing else imports the grader, so the agent loop never sees them):
+
+| Attribute | Upstream behaviour | Atoll's replacement | Why |
+|---|---|---|---|
+| `evaluate_excel_formulas_with_libreoffice` | `soffice --convert-to xlsx`; LibreOffice keeps cached values; returns `None` on failure (the extractor then grades cached values under a banner) | `atoll_tools.office.recalculate`: same conversion with a throwaway profile forcing `OOXMLRecalcMode` = always; **raises** on failure | placeholder caches (xlsxwriter writes 0 for every formula) survived recalculation; a failed recalculation silently graded empty/stale cells |
+| `_xlsx_has_uncached_formulas` | True iff some formula cell has no cached value | `atoll_tools.office.needs_recalculation`: also True when the workbook sets `fullCalcOnLoad` | xlsxwriter workbooks carry cached zeros, so upstream never recalculated them |
+| `_is_numeric_display_format` | only currency / percent / `#,##0` formats reach the `Number Formats` block | upstream's check, widened to every non-General, non-date/time numeric format | precision requirements (`0.00`, `0`) are judged by the format |
+
+The large-sheet summary (`【数据概要】`, sheets over 500 rows) is Atoll's own
+post-processing of the extractor's output, not a patch.

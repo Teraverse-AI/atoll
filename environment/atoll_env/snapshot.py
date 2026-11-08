@@ -26,3 +26,24 @@ def save_snapshot(workspace: str | Path, dest: str | Path) -> Path:
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     dest_path.write_bytes(snapshot_workspace(workspace).getvalue())
     return dest_path
+
+
+_SKIP_PREFIXES = (".", "~$")  # dotfiles, Office lock files — as the grader skips them
+
+
+def changed_since(initial_snapshot: str | Path, workspace: str | Path) -> list[str]:
+    """Workspace files added or modified since ``initial_snapshot`` (relative paths).
+
+    Dotfiles and Office lock files are left out.
+    """
+    root = Path(workspace)
+    with tarfile.open(initial_snapshot, "r:gz") as tar:
+        before = {m.name: tar.extractfile(m).read() for m in tar.getmembers() if m.isfile()}
+    changed = []
+    for path in sorted(root.rglob("*")):
+        rel = path.relative_to(root)
+        if not path.is_file() or any(p.startswith(_SKIP_PREFIXES) for p in rel.parts):
+            continue
+        if before.get(str(rel)) != path.read_bytes():
+            changed.append(str(rel))
+    return changed

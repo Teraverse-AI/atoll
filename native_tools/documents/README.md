@@ -24,3 +24,8 @@ Tool-mode note: upstream's server can also expose 2 consolidated meta-tools
 Mercor's APEX runs used (the APEX paper's tool-usage table counts per-operation tools
 like "Read document content", impossible in meta mode) and the mode upstream's own
 README and smoke test call the default.
+
+Opt-in (off by default, not part of Archipelago's surface — see
+[`../README.en.md`](../README.en.md#highlight-the-libreoffice-office-layer)):
+`convert_document_to_pdf` in `docs_server/office_tools.py` (LibreOffice Writer, installed
+in `atoll-runner`).

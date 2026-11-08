@@ -9,7 +9,8 @@ Native port of Archipelago's [`mcp_servers/code`](https://github.com/Mercor-Inte
 
 **Execution is ALWAYS sandboxed** — never on the host: a short-lived
 `--network none`, memory-capped Docker container with only the task
-workspace mounted. The image (`atoll-sandbox:latest`, built by
+workspace mounted, at `/filesystem` (upstream's `APP_FS_ROOT`, the commands' working
+directory — so the description's and Mercor's system prompt's `/filesystem/` paths work). The image (`atoll-sandbox:latest`, built by
 `scripts/build_sandbox_image.sh` from `environment/sandbox/`) preinstalls the same
 package profile as Archipelago's code server, and the tool description lists those
 packages exactly as upstream does.

@@ -1,14 +1,14 @@
 """Atoll companion sandbox server — runs as PID 1 inside an atoll-sandbox container.
 
 One server per eval. The container has no network and sees only that eval's
-workspace (/workspace) and a private channel volume (/channel) shared with the
+workspace (/filesystem — Archipelago's APP_FS_ROOT) and a private channel volume (/channel) shared with the
 eval's atoll-runner. The runner drops a request file into /channel/req; the server
 runs it and writes the result to /channel/resp. Files, not sockets: plain files
 work on every Docker Desktop volume backend.
 
 Every call gets the same clean slate a fresh `docker run --rm` would give: after
 it finishes (or times out) every other process in the container is killed and
-/tmp is emptied. Only /workspace persists between calls.
+/tmp is emptied. Only /filesystem persists between calls.
 
 Stdlib only; never imports Atoll code.
 """
@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 
 CHANNEL = Path(os.environ.get("ATOLL_CHANNEL_DIR", "/channel"))
-WORKSPACE = Path("/workspace")
+WORKSPACE = Path("/filesystem")  # Archipelago's APP_FS_ROOT
 TMP = Path("/tmp")
 POLL_SECONDS = 0.02
 

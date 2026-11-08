@@ -98,7 +98,7 @@ class ContainerSandbox:
     def _via_channel(self, kind: str, code: str, timeout: int) -> dict[str, Any]:
         """Hand one call to the companion sandbox and wait for its result.
 
-        The companion sees this eval's workspace at /workspace (its cwd), so no
+        The companion sees this eval's workspace at /filesystem (its cwd), so no
         path travels with the request.
         """
         channel = self.channel
@@ -135,7 +135,7 @@ class ContainerSandbox:
         return None
 
     def run_python(self, code: str, workspace: str | Path, timeout: int = 30) -> dict[str, Any]:
-        """Execute ``code`` with the workspace mounted at /workspace (its cwd)."""
+        """Execute ``code`` with the workspace mounted at /filesystem (its cwd)."""
         if self.channel is not None:
             result = self._via_channel("python", code, timeout)
             for key in ("stdout", "stderr"):
@@ -148,8 +148,8 @@ class ContainerSandbox:
             self.runtime, "run", "--rm",
             "--network", "none",
             "--memory", "512m",
-            "-v", f"{Path(workspace).resolve()}:/workspace",
-            "-w", "/workspace",
+            "-v", f"{Path(workspace).resolve()}:/filesystem",
+            "-w", "/filesystem",
             self.image,
             "python", "-I", "-c", code,
         ]
@@ -170,7 +170,7 @@ class ContainerSandbox:
             return {"error": f"{type(exc).__name__}: {exc}"}
 
     def run_shell(self, command: str, workspace: str | Path, timeout: int = 30) -> dict[str, Any]:
-        """Execute a shell ``command`` with the workspace mounted at /workspace (its cwd).
+        """Execute a shell ``command`` with the workspace mounted at /filesystem (its cwd).
 
         Same container flags as ``run_python``; the entrypoint is ``/bin/sh -c``.
         Output is returned unclipped — the code_exec tool applies its own
@@ -184,8 +184,8 @@ class ContainerSandbox:
             self.runtime, "run", "--rm",
             "--network", "none",
             "--memory", "512m",
-            "-v", f"{Path(workspace).resolve()}:/workspace",
-            "-w", "/workspace",
+            "-v", f"{Path(workspace).resolve()}:/filesystem",
+            "-w", "/filesystem",
             self.image,
             "/bin/sh", "-c", command,
         ]

@@ -40,7 +40,7 @@ def _run(monkeypatch, spy, model, extra_args=None, timeout=600):
 
 def test_ark_request_shaping(monkeypatch):
     spy = VendoredSpy([_reply("fine")])
-    _run(monkeypatch, spy, "volcengine/deepseek-v4", {"max_tokens": 4096})
+    _run(monkeypatch, spy, "volcengine/deepseek-test", {"max_tokens": 4096})
     call = spy.calls[0]
     assert call["extra_args"]["max_tokens"] == 16384  # raised: thinking shares the budget
     assert call["timeout"] == 900  # thinking takes minutes
@@ -48,7 +48,7 @@ def test_ark_request_shaping(monkeypatch):
 
 def test_ark_absent_max_tokens_left_absent(monkeypatch):
     spy = VendoredSpy([_reply("fine")])
-    _run(monkeypatch, spy, "volcengineC/deepseek-v4-flash")
+    _run(monkeypatch, spy, "volcengine/deepseek-test")
     assert "max_tokens" not in spy.calls[0]["extra_args"]
 
 
@@ -62,7 +62,7 @@ def test_non_ark_untouched(monkeypatch):
 
 def test_thinking_disabled_skips_budget_raise(monkeypatch):
     spy = VendoredSpy([_reply("fine")])
-    _run(monkeypatch, spy, "volcengine/deepseek-v4",
+    _run(monkeypatch, spy, "volcengine/deepseek-test",
          {"max_tokens": 4096, "thinking": {"type": "disabled"}})
     assert spy.calls[0]["extra_args"]["max_tokens"] == 4096
 
@@ -72,7 +72,7 @@ def test_empty_thinking_reply_retried_then_returned(monkeypatch):
         _reply("", reasoning="x" * 1000),   # budget eaten
         _reply("real answer", reasoning="short"),
     ])
-    response = _run(monkeypatch, spy, "volcengine/deepseek-v4", {"max_tokens": 4096})
+    response = _run(monkeypatch, spy, "volcengine/deepseek-test", {"max_tokens": 4096})
     assert response.choices[0].message.content == "real answer"
     assert len(spy.calls) == 2
     # retry 1 doubles the (already shaped) budget
@@ -85,7 +85,7 @@ def test_retries_only_escalate_budget_never_config(monkeypatch):
         _reply("", reasoning="think again"),
         _reply("answer at last"),
     ])
-    response = _run(monkeypatch, spy, "volcengine/deepseek-v4",
+    response = _run(monkeypatch, spy, "volcengine/deepseek-test",
                     {"max_tokens": 4096, "reasoning_effort": "max"})
     assert response.choices[0].message.content == "answer at last"
     assert len(spy.calls) == 3
@@ -98,7 +98,7 @@ def test_retries_only_escalate_budget_never_config(monkeypatch):
 
 def test_gives_up_after_two_retries(monkeypatch):
     spy = VendoredSpy([_reply("", reasoning="t")] * 3)
-    response = _run(monkeypatch, spy, "volcengine/deepseek-v4")
+    response = _run(monkeypatch, spy, "volcengine/deepseek-test")
     assert len(spy.calls) == 3
     assert response.choices[0].message.content == ""  # loop handles it from here
 
@@ -106,13 +106,13 @@ def test_gives_up_after_two_retries(monkeypatch):
 def test_tool_call_reply_is_not_retried(monkeypatch):
     tc = [SimpleNamespace(id="c1")]
     spy = VendoredSpy([_reply("", reasoning="t", tool_calls=tc)])
-    _run(monkeypatch, spy, "volcengine/deepseek-v4")
+    _run(monkeypatch, spy, "volcengine/deepseek-test")
     assert len(spy.calls) == 1  # empty content with tool calls is a normal turn
 
 
 def test_escape_hatch_disables_everything(monkeypatch):
     spy = VendoredSpy([_reply("", reasoning="t")])
-    _run(monkeypatch, spy, "volcengine/deepseek-v4",
+    _run(monkeypatch, spy, "volcengine/deepseek-test",
          {"max_tokens": 4096, "atoll_fixes": False})
     assert len(spy.calls) == 1
     call = spy.calls[0]

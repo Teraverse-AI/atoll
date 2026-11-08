@@ -12,7 +12,7 @@ Divergences from upstream:
 * ``AgentRunInput`` carries ``workspace_dir`` instead of upstream's
   ``mcp_gateway_url``/``mcp_gateway_auth_token``/``mcp_gateway_actor_id``:
   Atoll's per-run workspace IS the sandbox filesystem (shared with the
-  code-execution container at /workspace and presented to filesystem tools
+  code-execution container at /filesystem and presented to filesystem tools
   as '/'), so it is both the tool mount point and the spill target.
 * ``parent_trajectory_output``, ``custom_args``, ``task_custom_fields``,
   ``inner_agent_config``, ``rest_services``, ``AgentConfigIds``/``AgentDefn``
@@ -125,7 +125,7 @@ class AgentRunInput(BaseModel):
 
     # Atoll's replacement for upstream's mcp_gateway_url: the per-run workspace
     # directory. Tools resolve '/'-rooted paths against it, the code-execution
-    # container mounts it at /workspace, and oversized tool results spill into it.
+    # container mounts it at /filesystem, and oversized tool results spill into it.
     workspace_dir: str
 
     orchestrator_model: str

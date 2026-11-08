@@ -38,7 +38,7 @@ a UI, a server, CI, or anything else — by issuing the same `docker` commands:
 
 ```bash
 scripts/build_sandbox_image.sh && scripts/build_runner_image.sh
-scripts/run_eval.sh --task examples/q001_adjusting_entry --out runs/q001/eval1 \
+scripts/run_eval.sh --task <task-dir> --out runs/<task-id>/eval1 \
     --model <model> --env-file .env
 ```
 

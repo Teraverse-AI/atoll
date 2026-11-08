@@ -4,16 +4,24 @@
 # commands with the same flags.
 #
 # Usage:
-#   scripts/run_eval.sh --task <task-dir> --out <run-dir> --model <model> \
-#       [--env-file <file>] [--network on|off] [-- <runner args...>]
+#   scripts/run_eval.sh --task <task-dir> [--out <run-dir>] --model <model> [--model-name <name>] \
+#       [--env-file <file>] [--network on|off] [--system-prompt-file <file>] \
+#       [-- <runner args...>]
 #
-#   <task-dir>  Harbor-style bundle (task.toml, instruction.md, workspace/, gold_answer.json)
-#   <run-dir>   must not exist yet; receives workspace/, snapshots, trajectory.jsonl, result.json
+#   <task-dir>  Harbor-style bundle (task.toml, instruction.md, workspace/, rubrics.json, reference/),
+#               or a delivery task (prompt.md, filesystem/, optional task.toml)
+#   <run-dir>   must not exist yet; receives snapshots, trajectory.jsonl, result.json, and
+#               workspace/ (bundle) or agent_outputs/ (delivery), network.txt, egress.log.
+#               Required for bundles; delivery default <task-dir>/results/<model>/run_<next n>
+#               (<model> = --model-name, else the alias's last segment)
 #   --env-file  model credentials etc. — given to the RUNNER only, never the sandbox
 #   --network   the runner's network (like --max-steps: CLI > task.toml [atoll].network
 #               > $ATOLL_NETWORK > default off). off = only the allow-listed LLM
 #               endpoint ($ATOLL_EGRESS_ALLOW, else the LITELLM_BASE_URL host), via the
 #               eval's egress proxy; on = ordinary outbound access. Never the sandbox.
+#   --system-prompt-file  global system prompt override, mounted read-only into the
+#               runner (a task's own [atoll] system_prompt_file still wins; default:
+#               agents/runner/system_prompts/atoll_agents.md; Mercor's reference: apex_agents.md)
 #   -- ...      extra atoll-run flags (e.g. --max-steps 50). ATOLL_RUNNER_ENTRYPOINT
 #               overrides the runner's entrypoint (used by the isolation tests).
 #
@@ -33,22 +41,38 @@ RUNNER_IMAGE="${ATOLL_RUNNER_IMAGE:-atoll-runner:latest}"
 SANDBOX_IMAGE="${ATOLL_SANDBOX_IMAGE:-atoll-sandbox:latest}"
 NETWORK="${ATOLL_RUNNER_NETWORK:-atoll-runner-net}"
 
-TASK="" OUT="" MODEL="" ENV_FILE="" NETWORK_CLI="" EXTRA=()
+TASK="" OUT="" MODEL="" MODEL_NAME="" ENV_FILE="" NETWORK_CLI="" PROMPT_FILE="" EXTRA=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --task) TASK="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --model) MODEL="$2"; shift 2 ;;
+    --model-name) MODEL_NAME="$2"; shift 2 ;;
     --env-file) ENV_FILE="$2"; shift 2 ;;
     --network) NETWORK_CLI="$2"; shift 2 ;;
+    --system-prompt-file) PROMPT_FILE="$2"; shift 2 ;;
     --) shift; EXTRA=("$@"); break ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-[ -n "$TASK" ] && [ -n "$OUT" ] || { echo "usage: $0 --task DIR --out DIR --model M [--env-file F] [-- args]" >&2; exit 2; }
+[ -n "$TASK" ] || { echo "usage: $0 --task DIR [--out DIR] --model M [--env-file F] [-- args]" >&2; exit 2; }
 [ -n "$MODEL" ] || [ -n "${ATOLL_RUNNER_ENTRYPOINT:-}" ] || { echo "--model is required" >&2; exit 2; }
 [ -d "$TASK" ] || { echo "task dir not found: $TASK" >&2; exit 2; }
+DELIVERY=""
+[ -f "$TASK/prompt.md" ] && [ -d "$TASK/filesystem" ] && DELIVERY=1
+if [ -z "$OUT" ]; then
+  [ -n "$DELIVERY" ] && [ -n "$MODEL" ] || { echo "--out is required (except for delivery tasks)" >&2; exit 2; }
+  MODEL_DIR="$TASK/results/${MODEL_NAME:-${MODEL##*/}}"
+  N=0
+  for d in "$MODEL_DIR"/run_*; do
+    n="${d##*/run_}"
+    case "$n" in ''|*[!0-9]*) continue ;; esac
+    [ "$n" -gt "$N" ] && N="$n"
+  done
+  OUT="$MODEL_DIR/run_$((N + 1))"
+fi
 [ ! -e "$OUT" ] || { echo "run dir already exists: $OUT" >&2; exit 2; }
+[ -z "$PROMPT_FILE" ] || [ -f "$PROMPT_FILE" ] || { echo "system prompt file not found: $PROMPT_FILE" >&2; exit 2; }
 
 TASK="$(cd "$TASK" && pwd)"
 mkdir -p "$OUT/workspace"
@@ -60,6 +84,9 @@ cleanup() {
     docker logs "$ID-egress" >"$OUT/egress.log" 2>&1 || true
   fi
   docker rm -f "$ID-sandbox" "$ID-runner" "$ID-egress" >/dev/null 2>&1 || true
+  # Delivery runs: the runner empties workspace/ (agent_outputs/ keeps the changes);
+  # the directory itself goes once the sandbox no longer mounts it.
+  [ -z "$DELIVERY" ] || rmdir "$OUT/workspace" 2>/dev/null || true
   docker network rm "$ID-net" >/dev/null 2>&1 || true
   docker volume rm -f "$ID-ch" >/dev/null 2>&1 || true
 }
@@ -114,12 +141,17 @@ docker run -d --name "$ID-sandbox" "${LOCKS[@]}" \
   --network none \
   --memory 512m --memory-swap 512m --cpus 1 --pids-limit 128 \
   --tmpfs /tmp:rw,size=256m,mode=1777 \
-  -v "$OUT/workspace:/workspace" \
+  -v "$OUT/workspace:/filesystem" \
   -v "$ID-ch:/channel" \
   "$SANDBOX_IMAGE" >/dev/null
 
 RUNNER_ARGS=(--task /task --output /eval/run --workspace /eval/run/workspace)
 [ -n "$MODEL" ] && RUNNER_ARGS+=(--model "$MODEL")
+PROMPT_MOUNT=()
+if [ -n "$PROMPT_FILE" ]; then
+  PROMPT_MOUNT=(-v "$(cd "$(dirname "$PROMPT_FILE")" && pwd)/$(basename "$PROMPT_FILE"):/config/system_prompt.md:ro")
+  RUNNER_ARGS+=(--system-prompt-file /config/system_prompt.md)
+fi
 ENTRY=()
 if [ -n "${ATOLL_RUNNER_ENTRYPOINT:-}" ]; then
   ENTRY=(--entrypoint "$ATOLL_RUNNER_ENTRYPOINT"); RUNNER_ARGS=()
@@ -132,6 +164,7 @@ docker run --rm --name "$ID-runner" "${LOCKS[@]}" \
   -v "$TASK:/task:ro" \
   -v "$OUT:/eval/run" \
   -v "$ID-ch:/channel" \
+  ${PROMPT_MOUNT[@]+"${PROMPT_MOUNT[@]}"} \
   -e ATOLL_EVAL_ID="$ID" -e ATOLL_NETWORK_MODE="$NET_MODE" \
   ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} ${PASS_ENV[@]+"${PASS_ENV[@]}"} \
   ${ENTRY[@]+"${ENTRY[@]}"} \
