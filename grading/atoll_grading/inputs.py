@@ -7,7 +7,7 @@ Two layouts each:
   every file in it except the rubric file is a reference output).
   **Delivery task** — ``prompt.md`` (or, in the earlier tree, ``workspace/prompt.md``),
   ``reference/rubrics.json``, ``reference/outputs/``; id from ``metadata.json``
-  ``题目编号``, else the directory name.
+  ``task_id``, else the directory name.
 - **Atoll run dir** (written by ``atoll-run``, bundle or delivery task) — ``result.json``
   (final answer) and the files the agent added or changed: the diff between
   ``initial_snapshot.tar.gz`` and ``final_snapshot.tar.gz``. **Delivery run dir** — ``agent_outputs/`` and
@@ -85,7 +85,7 @@ def load_task(task_dir: str | Path, name: str | None = None) -> Task:
     rubric_path = task_dir / "reference" / "rubrics.json"
     if prompt.exists() and rubric_path.exists():
         meta = task_dir / "metadata.json"
-        task_id = json.loads(meta.read_text(encoding="utf-8")).get("题目编号") if meta.is_file() else None
+        task_id = json.loads(meta.read_text(encoding="utf-8")).get("task_id") if meta.is_file() else None
         return Task(
             id=str(task_id) if task_id else fallback,
             prompt=prompt.read_text(encoding="utf-8"),

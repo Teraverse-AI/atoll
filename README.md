@@ -176,6 +176,10 @@ Agents 组件对应 Archipelago 的 `agents/runner/`。核心循环（`agents/ru
 
 `atoll-grade --task <任务目录> --run <运行目录> --judge-model <模型>`（容器方式：`scripts/run_grade.sh`，渲染阶段无网络、评审阶段只能访问评审端点）。按评分标准逐条调用 LLM 评审（评审模型由你选择），评审对象为智能体新增或修改的文件；每次运行一个加权得分率，每个模型取多次运行的平均分。文件由 Archipelago 自己的提取器（逐字节 vendored）渲染。与 Archipelago 不同，Atoll 的评审会看到任务附带的、由专家准备的参考答案（golden），并按用户实际看到的样子评判表格：每个工作簿在渲染前先用 LibreOffice 在本地强制全量重算（重算失败即终止评分），超过 500 行的工作表另附由程序基于全部数据行计算的数据概要。详见 [grading/README.md](./grading/README.md)。
 
+### Schema 任务元数据
+
+交付任务的元数据（Agent 任务的 `metadata.json`、问答任务的 `<task_id>.json`）由一个 JSON Schema 描述——见 [schema/README.md](./schema/README.md)。
+
 ---
 
 ## Atoll 与 Archipelago 对比

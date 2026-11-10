@@ -105,12 +105,12 @@ def is_delivery_task(task_dir: Path) -> bool:
 
 
 def _task_id(task_dir: Path, config: dict) -> str:
-    """task.toml [metadata] id > metadata.json 题目编号 > the directory name."""
+    """task.toml [metadata] id > metadata.json task_id > the directory name."""
     if task_id := config.get("metadata", {}).get("id"):
         return task_id
     meta = task_dir / "metadata.json"
     if meta.is_file():
-        task_id = json.loads(meta.read_text(encoding="utf-8")).get("题目编号")
+        task_id = json.loads(meta.read_text(encoding="utf-8")).get("task_id")
         if task_id:
             return str(task_id)
     return task_dir.name

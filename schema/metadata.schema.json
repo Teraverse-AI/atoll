@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Teraverse-AI/atoll/schema/metadata.schema.json",
+  "title": "Atoll task metadata",
+  "description": "Metadata of one delivered task: an Agent task's metadata.json, or a QA task's <task_id>.json. A document is exactly one of the two kinds: an Agent task carries `framework`, a QA task carries `qa_type`. Each kind is also usable on its own: #/$defs/agent, #/$defs/qa. An Agent task's reference/rubrics.json validates against #/$defs/rubrics.",
+  "oneOf": [{ "$ref": "#/$defs/agent" }, { "$ref": "#/$defs/qa" }],
+  "$defs": {
+    "common": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The task's id. Teraverse's convention: AG-0001-ACC-v1 (Agent) / QA-0001-ACC-v1 (QA) = {kind}-{4-digit sequence, one per kind}-{subject acronym ACC|AUD|CFM|TAX|OTH|MIX}-v{version}. Any id works for Atoll."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject, e.g. 会计 (accounting), 审计 (audit), 财管 (corporate finance & management), 税法 (tax), 综合 (cross-subject), 其他 (other)."
+        },
+        "tags": { "type": "string", "description": "Sub-topic tags, as one string." },
+        "prompt": { "type": "string", "minLength": 1, "description": "The task text: the run's user message." },
+        "common_errors": { "type": "string", "description": "Typical mistakes on this task." },
+        "knowledge_points": { "type": "string", "description": "Knowledge and standards the task covers." },
+        "author": { "type": "string", "description": "Who published the task." },
+        "date": { "$ref": "#/$defs/date", "description": "The day the task was finished." },
+        "difficulty": {
+          "enum": ["L1", "L2", "L3"],
+          "description": "L1 easiest, L3 hardest; decided on the best model's mean score."
+        }
+      }
+    },
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "score": { "type": "number", "minimum": 0, "maximum": 100, "description": "Weighted rubric score, in percent." },
+    "evaluations": {
+      "type": "object",
+      "description": "Per model: its runs and their mean score.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "runs": { "type": "array", "minItems": 1 },
+          "mean_score": { "$ref": "#/$defs/score" }
+        },
+        "required": ["runs", "mean_score"],
+        "additionalProperties": false
+      }
+    },
+    "rubric_item": {
+      "type": "object",
+      "properties": {
+        "rubric_number": { "type": "integer", "minimum": 1 },
+        "rubric_tag": { "type": "string" },
+        "rubric_weight": {
+          "type": "integer",
+          "description": "> 0 credit, < 0 penalty, 0 veto (the item zeroes the score when it holds)."
+        },
+        "rubric_detail": { "type": "string", "minLength": 1 }
+      },
+      "required": ["rubric_number", "rubric_tag", "rubric_weight", "rubric_detail"],
+      "additionalProperties": false
+    },
+    "rubrics": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/rubric_item" } },
+    "agent": {
+      "title": "Agent task metadata (metadata.json)",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/common" }],
+      "properties": {
+        "internal_id": { "type": "string", "description": "The author's internal id for the task (a GUID)." },
+        "framework": { "const": "atoll" },
+        "evaluations": {
+          "$ref": "#/$defs/evaluations",
+          "additionalProperties": {
+            "properties": {
+              "runs": {
+                "items": {
+                  "type": "object",
+                  "properties": { "score": { "$ref": "#/$defs/score" }, "date": { "$ref": "#/$defs/date" } },
+                  "required": ["score", "date"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": ["task_id", "framework", "prompt", "difficulty", "evaluations"],
+      "unevaluatedProperties": false
+    },
+    "qa": {
+      "title": "QA task (<task_id>.json)",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/common" }],
+      "properties": {
+        "qa_type": { "enum": ["客观", "主观"], "description": "客观 objective (one verifiable answer) / 主观 subjective." },
+        "question_type": { "enum": ["SC", "MC", "CA", "NA"], "description": "SC single choice, MC multiple choice, CA calculation, NA none." },
+        "reference_answer": { "type": "string", "minLength": 1 },
+        "rubrics": { "$ref": "#/$defs/rubrics" },
+        "evaluations": {
+          "$ref": "#/$defs/evaluations",
+          "additionalProperties": {
+            "properties": {
+              "runs": {
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "response": { "type": "string" },
+                    "score": { "$ref": "#/$defs/score" },
+                    "correct": { "enum": [0, 1], "description": "Objective tasks only: whether the final answer matches reference_answer." },
+                    "date": { "$ref": "#/$defs/date" }
+                  },
+                  "required": ["response", "score", "date"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": ["task_id", "qa_type", "question_type", "prompt", "reference_answer", "rubrics", "difficulty", "evaluations"],
+      "if": { "properties": { "qa_type": { "const": "客观" } } },
+      "then": {
+        "properties": {
+          "evaluations": { "additionalProperties": { "properties": { "runs": { "items": { "required": ["correct"] } } } } }
+        }
+      },
+      "unevaluatedProperties": false
+    }
+  }
+}

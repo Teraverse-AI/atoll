@@ -26,7 +26,7 @@ scripts/run_grade.sh --task <任务目录> --run <运行目录> --out <评分目
 
 | | Atoll 布局 | 交付布局 |
 |---|---|---|
-| 任务 | `task.toml` + 题干文件；`[atoll] rubrics`（默认 `rubrics.json`）与 `[atoll] reference_dir`（默认 `reference/`，其中除评分标准文件外都是参考答案文件） | `prompt.md`（或 `workspace/prompt.md`）、`reference/rubrics.json`、`reference/outputs/`；编号取自 `metadata.json` 的 `题目编号` |
+| 任务 | `task.toml` + 题干文件；`[atoll] rubrics`（默认 `rubrics.json`）与 `[atoll] reference_dir`（默认 `reference/`，其中除评分标准文件外都是参考答案文件） | `prompt.md`（或 `workspace/prompt.md`）、`reference/rubrics.json`、`reference/outputs/`；编号取自 `metadata.json` 的 `task_id` |
 | 运行 | `atoll-run` 的输出：`result.json`（最终回复），以及智能体**新增或修改**的文件——即 `initial_snapshot.tar.gz` 与 `final_snapshot.tar.gz` 的差异，与 Archipelago 的评分方式相同 | 同左的 `atoll-run` 输出；或 `agent_outputs/` 与 `cli.json`（最后一个 `result` 事件即最终回复） |
 
 评分项字段：`rubric_number`、`rubric_tag`、`rubric_weight`、`rubric_detail`。点开头的文件和 Office 锁文件（`~$…`）会被忽略。

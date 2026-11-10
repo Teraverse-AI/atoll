@@ -179,6 +179,10 @@ The Agents component mirrors Archipelago's `agents/runner/`. The core loop (`age
 
 `atoll-grade --task <task-dir> --run <run-dir> --judge-model <model>` (in containers: `scripts/run_grade.sh` — rendering with no network, judging with only the judge endpoint reachable). A per-rubric-item LLM judge (model of your choice) over the files the agent added or changed, one weighted score per run, and per-model mean scores; files are rendered by Archipelago's own extractor (vendored byte-identical). Unlike Archipelago's judge, Atoll's sees the tasks' expert-prepared reference (golden) outputs, and judges spreadsheets as a user would see them: every workbook is force-recalculated locally with LibreOffice before rendering (a failed recalculation aborts grading), and sheets over 500 rows come with a program-computed summary of all their rows. Details: [grading/README.en.md](./grading/README.en.md).
 
+### Schema
+
+Delivered task metadata (an Agent task's `metadata.json`, a QA task's `<task_id>.json`) is described by one JSON Schema — see [schema/README.en.md](./schema/README.en.md).
+
 ---
 
 ## Atoll vs. Archipelago

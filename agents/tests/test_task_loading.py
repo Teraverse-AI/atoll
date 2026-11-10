@@ -39,11 +39,11 @@ def test_write_trajectory_jsonl(tmp_path):
 
 
 def _delivery_task(root: Path) -> Path:
-    t = root / "0001-A-ACC-v1"
+    t = root / "AG-0001-ACC-v1"
     (t / "filesystem").mkdir(parents=True)
     (t / "filesystem" / "ledger.csv").write_text("a,b\n")
     (t / "prompt.md").write_text("Fix the ledger.")
-    (t / "metadata.json").write_text(json.dumps({"题目编号": "0001-A-ACC-v1"}))
+    (t / "metadata.json").write_text(json.dumps({"task_id": "AG-0001-ACC-v1"}))
     return t
 
 
@@ -52,7 +52,7 @@ def test_load_delivery_task(tmp_path):
 
     t = _delivery_task(tmp_path)
     task = load_task(t)
-    assert task["delivery"] and task["id"] == "0001-A-ACC-v1"
+    assert task["delivery"] and task["id"] == "AG-0001-ACC-v1"
     assert task["instruction"] == "Fix the ledger."
     assert task["workspace_template"] == t / "filesystem"
     assert task["system_prompt_file"] is None and task["agent"] == {}

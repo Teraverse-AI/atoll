@@ -37,7 +37,7 @@ routing, provider request surgery and retry policy as the agent loop. Each call 
 
 | | Atoll layout | Delivery layout |
 |---|---|---|
-| task | `task.toml` + instruction file; `[atoll] rubrics` (default `rubrics.json`) and `[atoll] reference_dir` (default `reference/`; every file in it except the rubric is a reference output) | `prompt.md` (or `workspace/prompt.md`), `reference/rubrics.json`, `reference/outputs/`; id from `metadata.json` `题目编号` |
+| task | `task.toml` + instruction file; `[atoll] rubrics` (default `rubrics.json`) and `[atoll] reference_dir` (default `reference/`; every file in it except the rubric is a reference output) | `prompt.md` (or `workspace/prompt.md`), `reference/rubrics.json`, `reference/outputs/`; id from `metadata.json` `task_id` |
 | run | `atoll-run` output: `result.json` (final answer) and the files the agent **added or changed** — the diff between `initial_snapshot.tar.gz` and `final_snapshot.tar.gz`, as Archipelago grades | an `atoll-run` output as on the left; or `agent_outputs/` and `cli.json` (the last `result` event is the final answer) |
 
 Rubric items carry `rubric_number`, `rubric_tag`, `rubric_weight`, `rubric_detail`.

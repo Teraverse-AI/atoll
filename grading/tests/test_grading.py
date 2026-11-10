@@ -93,11 +93,11 @@ def test_atoll_delivery_task(tmp_path):
     (t / "filesystem").mkdir(parents=True)
     (t / "reference" / "outputs").mkdir(parents=True)
     (t / "prompt.md").write_text("do it")
-    (t / "metadata.json").write_text(json.dumps({"题目编号": "0001-A-ACC-v1"}))
+    (t / "metadata.json").write_text(json.dumps({"task_id": "AG-0001-ACC-v1"}))
     (t / "reference" / "rubrics.json").write_text(json.dumps([{"rubric_number": 1, "rubric_weight": 2}]))
     (t / "reference" / "outputs" / "gold.txt").write_text("g")
     task = load_task(t)
-    assert task.id == "0001-A-ACC-v1" and task.prompt == "do it"
+    assert task.id == "AG-0001-ACC-v1" and task.prompt == "do it"
     assert list(task.reference_files) == ["gold.txt"]
 
 
