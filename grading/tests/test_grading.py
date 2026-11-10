@@ -99,6 +99,13 @@ def test_atoll_delivery_task(tmp_path):
     task = load_task(t)
     assert task.id == "AG-0001-ACC-v1" and task.prompt == "do it"
     assert list(task.reference_files) == ["gold.txt"]
+    # A delivery task may carry a task.toml (id + run settings): still a delivery task,
+    # and its [metadata] id wins, as in the runner.
+    (t / "task.toml").write_text('[metadata]\nid = "guid-1"\n\n[agent]\nmax_steps = 250\n')
+    task = load_task(t)
+    assert task.id == "guid-1" and task.prompt == "do it"
+    assert [r["rubric_number"] for r in task.rubric] == [1]
+    assert list(task.reference_files) == ["gold.txt"]
 
 
 def test_atoll_bundle(tmp_path):
